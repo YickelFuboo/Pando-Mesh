@@ -1,0 +1,316 @@
+{
+  "template_id": "tpl_demo_req001",
+  "name": "需求分析",
+  "description": "对原始需求进行  需求澄清-特性影响分析",
+  "user_goal": "对原始需求进行  需求澄清-特性影响分析",
+  "judge_mode": "auto",
+  "graph": {
+    "nodes": [
+      {
+        "id": "step_design",
+        "label": "需求分析",
+        "task": "请使用 {workspace}/skills/01-fwd-req-analysis这个skill，对{requirement_id}需求进行分析",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "output_doc_paths": [
+          "{workspace}/requirements/{requirement_id}/需求描述.md",
+          "{workspace}/requirements/{requirement_id}/需求分析.md"
+        ]
+      },
+      {
+        "id": "step_design_review",
+        "label": "需求分析质检",
+        "task": "请使用 {workspace}/skills/01-Q-fwd-req-quality-check这个skill，对{requirement_id}需求的分析结果进行检查",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "check",
+        "output_doc_paths": [
+          "{workspace}/requirements/{requirement_id}/需求质量检查.md"
+        ]
+      },
+      {
+        "id": "n1",
+        "label": "特性影响分析",
+        "task": "请使用 {workspace}/skills/02-fwd-feature-change-gen这个skill，对{requirement_id}需求进行特性影响分析",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "output_doc_paths": [
+          "{workspace}/requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+        ]
+      },
+      {
+        "id": "n2",
+        "label": "特性继承性分析",
+        "task": "请使用 {workspace}/skills/03-fwd-inheritance-analysis这个skill，对{requirement_id}需求对特性的进行性进行分析",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "output_doc_paths": [
+          "{workspace}/requirements/{requirement_id}/feature_changes/继承性分析报告.md"
+        ]
+      },
+      {
+        "id": "n3",
+        "label": "特性分析质检",
+        "task": "请使用 {workspace}/skills/03-Q-fwd-scenario-impact-check这个skill，对{requirement_id}需求的特性分析结果进行检查",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "check"
+      },
+      {
+        "id": "n4",
+        "label": "需求分析检查",
+        "task": "",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "设计",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      {
+        "from": "START",
+        "to": "step_design",
+        "condition": "always"
+      },
+      {
+        "from": "step_design",
+        "to": "step_design_review",
+        "condition": "always"
+      },
+      {
+        "from": "step_design_review",
+        "to": "n1",
+        "condition": "pass"
+      },
+      {
+        "from": "step_design_review",
+        "to": "step_design",
+        "condition": "reject"
+      },
+      {
+        "from": "n1",
+        "to": "n2",
+        "condition": "pass"
+      },
+      {
+        "from": "n2",
+        "to": "n3",
+        "condition": "pass"
+      },
+      {
+        "from": "n3",
+        "to": "n4",
+        "condition": "pass"
+      },
+      {
+        "from": "n4",
+        "to": "END",
+        "condition": "always"
+      },
+      {
+        "from": "n3",
+        "to": "n1",
+        "condition": "reject"
+      }
+    ],
+    "entry": "step_design"
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-06-27 00:00:00",
+  "updated_at": "2026-06-28 16:15:34"
+}

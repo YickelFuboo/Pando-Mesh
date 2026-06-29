@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Pando-Mesh API (Debug)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/start.py",
+      "preLaunchTask": "free-port-8100",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "DEBUG": "false"
+      },
+      "justMyCode": true
+    },
+    {
+      "name": "Pytest: 当前文件",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-q", "-s"],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": true
+    },
+    {
+      "name": "Pando-Mesh Web (Vite)",
+      "type": "node",
+      "request": "launch",
+      "preLaunchTask": "free-port-5174",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5174", "--host"],
+      "cwd": "${workspaceFolder}/web",
+      "console": "integratedTerminal"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Pando-Mesh 全栈 (API + Web)",
+      "configurations": [
+        "Pando-Mesh API (Debug)",
+        "Pando-Mesh Web (Vite)"
+      ],
+      "stopAll": true
+    }
+  ]
+}

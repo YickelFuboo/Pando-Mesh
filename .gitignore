@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+data/workflows/
+data/planning_checkpoints.sqlite*
+.env
+data/models/chat_models.json
+web/.env
+node_modules/
+dist/

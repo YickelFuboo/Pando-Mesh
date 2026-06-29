@@ -1,0 +1,18 @@
+:root {
+  --pm-bg: #f5f6f8;
+  --pm-surface: #ffffff;
+  --pm-surface-muted: #fafafa;
+  --pm-border: #ebebeb;
+  --pm-border-strong: #d9d9d9;
+  --pm-primary: #1677ff;
+  --pm-primary-hover: #4096ff;
+  --pm-primary-soft: #e6f4ff;
+  --pm-text: #1f1f1f;
+  --pm-text-secondary: #8c8c8c;
+  --pm-success: #52c41a;
+  --pm-warning: #faad14;
+  --pm-danger: #ff4d4f;
+  --pm-radius: 8px;
+  --pm-radius-lg: 12px;
+  --pm-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}

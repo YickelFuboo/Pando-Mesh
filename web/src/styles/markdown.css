@@ -1,0 +1,129 @@
+.pm-markdown {
+  white-space: normal;
+  line-height: 1.7;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #3c4043;
+  font-size: 13px;
+}
+.pm-markdown p {
+  margin: 0;
+  line-height: 1.7;
+}
+.pm-markdown p + p {
+  margin-top: 0.65em;
+}
+.pm-markdown * + p,
+.pm-markdown * + ul,
+.pm-markdown * + ol,
+.pm-markdown * + h1,
+.pm-markdown * + h2,
+.pm-markdown * + h3,
+.pm-markdown * + h4,
+.pm-markdown * + h5,
+.pm-markdown * + h6,
+.pm-markdown * + table,
+.pm-markdown * + pre,
+.pm-markdown * + blockquote {
+  margin-top: 0.65em;
+}
+.pm-markdown p:first-child {
+  margin-top: 0;
+}
+.pm-markdown h1,
+.pm-markdown h2,
+.pm-markdown h3,
+.pm-markdown h4,
+.pm-markdown h5,
+.pm-markdown h6 {
+  margin: 0.85em 0 0.4em;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #202124;
+}
+.pm-markdown h1:first-child,
+.pm-markdown h2:first-child,
+.pm-markdown h3:first-child {
+  margin-top: 0;
+}
+.pm-markdown h1 { font-size: 1.3em; }
+.pm-markdown h2 { font-size: 1.2em; }
+.pm-markdown h3 { font-size: 1.1em; }
+.pm-markdown ul,
+.pm-markdown ol {
+  margin: 0.5em 0;
+  padding-left: 1.35em;
+}
+.pm-markdown li {
+  margin: 0;
+  padding: 0;
+  line-height: 1.7;
+}
+.pm-markdown li > p {
+  margin: 0;
+  line-height: 1.7;
+}
+.pm-markdown li + li {
+  margin-top: 0.35em;
+}
+.pm-markdown blockquote {
+  margin: 0.5em 0;
+  padding: 0.35em 0 0.35em 1em;
+  border-left: 3px solid #dadce0;
+  color: #5f6368;
+  line-height: 1.7;
+}
+.pm-markdown pre {
+  margin: 0.5em 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  line-height: 1.55;
+}
+.pm-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Monaco, Consolas, monospace;
+  font-size: 0.9em;
+}
+.pm-markdown :not(pre) > code {
+  background: #f1f3f4;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.pm-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.65em 0 0.85em;
+  font-size: 13px;
+}
+.pm-markdown th,
+.pm-markdown td {
+  border: 1px solid #e8eaed;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.65;
+}
+.pm-markdown th {
+  background: #f8f9fa;
+  font-weight: 600;
+}
+.pm-markdown tbody tr:nth-child(even) {
+  background: #fafbfc;
+}
+.pm-markdown hr {
+  margin: 1em 0;
+  border: none;
+  border-top: 1px solid #e8eaed;
+}
+.pm-markdown a {
+  color: var(--pm-primary, #1677ff);
+  text-decoration: none;
+}
+.pm-markdown a:hover {
+  text-decoration: underline;
+}

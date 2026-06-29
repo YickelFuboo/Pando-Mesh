@@ -1,0 +1,117 @@
+{
+  "_comment": "REQ-001 演示拓扑，可直接粘贴到「模板管理」或 Session 拓扑 JSON 中",
+  "user_goal": "实现 AUSF 可配置 NF Instance ID：完成方案设计、编码实现、联调测试，并通过各阶段评审验收",
+  "graph": {
+    "nodes": [
+      {
+        "id": "step_design",
+        "label": "方案设计",
+        "task": "阅读需求 README，输出 AUSF NF Instance ID 可配置方案与接口变更说明",
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/docs/design-ausf-nf-id.md"
+        ],
+        "output_doc_paths": [
+          "docs/ausf/design-summary.md"
+        ],
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "commands": [{ "command": "claude", "args": ["-p", "--output-format", "json"] }],
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": { "enabled": true, "resume_args": ["--resume", "{cli_session_id}"] }
+          }
+        }
+      },
+      {
+        "id": "step_design_review",
+        "label": "设计评审",
+        "task": "审查方案是否覆盖可配置 NF Instance ID 的场景与兼容性",
+        "phase": "设计",
+        "node_role": "check",
+        "max_iterations": 3,
+        "executor": { "kind": "human" }
+      },
+      {
+        "id": "step_dev",
+        "label": "编码实现",
+        "task": "按评审通过的方案修改 AUSF 代码，支持 NF Instance ID 配置化",
+        "phase": "开发",
+        "node_role": "execute",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "commands": [{ "command": "claude", "args": ["-p", "--output-format", "json"] }],
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": { "enabled": true, "resume_args": ["--resume", "{cli_session_id}"] }
+          }
+        }
+      },
+      {
+        "id": "step_code_review",
+        "label": "代码审查",
+        "task": "审查代码质量、配置项默认值与异常处理",
+        "phase": "开发",
+        "node_role": "check",
+        "max_iterations": 3,
+        "executor": { "kind": "human" }
+      },
+      {
+        "id": "step_test",
+        "label": "联调测试",
+        "task": "编写并执行 NF Instance ID 配置相关测试用例",
+        "phase": "测试",
+        "node_role": "execute",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "commands": [{ "command": "claude", "args": ["-p", "--output-format", "json"] }],
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": { "enabled": true, "resume_args": ["--resume", "{cli_session_id}"] }
+          }
+        }
+      },
+      {
+        "id": "step_test_review",
+        "label": "测试验收",
+        "task": "确认测试通过，功能可交付",
+        "phase": "测试",
+        "node_role": "check",
+        "max_iterations": 3,
+        "executor": { "kind": "human" }
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_design", "condition": "always" },
+      { "from": "step_design", "to": "step_design_review", "condition": "always" },
+      { "from": "step_design_review", "to": "step_dev", "condition": "pass" },
+      { "from": "step_design_review", "to": "step_design", "condition": "reject" },
+      { "from": "step_dev", "to": "step_code_review", "condition": "always" },
+      { "from": "step_code_review", "to": "step_test", "condition": "pass" },
+      { "from": "step_code_review", "to": "step_dev", "condition": "reject" },
+      { "from": "step_test", "to": "step_test_review", "condition": "always" },
+      { "from": "step_test_review", "to": "END", "condition": "pass" },
+      { "from": "step_test_review", "to": "step_test", "condition": "reject" }
+    ],
+    "entry": "step_design"
+  }
+}
