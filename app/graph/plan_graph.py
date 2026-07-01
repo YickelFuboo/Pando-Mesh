@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Optional
 from app.graph.node_config import GraphNodeExecutor
-from app.session.workspace_ref import normalize_node_doc_path_lists, parse_workspace_refs
+from app.workspace.refs import normalize_node_doc_path_lists, parse_workspace_refs
 
 
 #===============

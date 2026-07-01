@@ -1,7 +1,8 @@
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List
+
+from app.workspace.paths import normalize_workspace_path
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,9 @@ class RequirementItem:
     name: str
     path: str
     summary: str = ""
+    title: str = ""
+    status: str = ""
+    has_index: bool = False
 
     def to_dict(self) -> dict:
         return {
@@ -17,14 +21,10 @@ class RequirementItem:
             "name": self.name,
             "path": self.path,
             "summary": self.summary,
+            "title": self.title or self.summary or self.name,
+            "status": self.status,
+            "has_index": self.has_index,
         }
-
-
-def normalize_workspace_path(workspace_path: str) -> str:
-    raw = str(workspace_path or "").strip()
-    if not raw:
-        return ""
-    return str(Path(raw).expanduser().resolve())
 
 
 def requirements_root(workspace_path: str) -> Path:
@@ -38,7 +38,13 @@ def requirements_root(workspace_path: str) -> Path:
 
 
 def _read_summary(req_dir: Path) -> str:
-    for name in ("README.md", "readme.md", "requirement.md", "goal.txt", "spec.md"):
+    from app.workspace.requirement_index import read_requirement_meta
+
+    meta = read_requirement_meta(req_dir)
+    title = str(meta.get("title") or "").strip()
+    if title:
+        return title[:200]
+    for name in ("README.md", "readme.md", "requirement.md", "goal.txt", "spec.md", "需求描述.md"):
         path = req_dir / name
         if not path.is_file():
             continue
@@ -53,6 +59,8 @@ def _read_summary(req_dir: Path) -> str:
 
 
 def list_requirements(workspace_path: str) -> List[RequirementItem]:
+    from app.workspace.requirement_index import read_requirement_meta
+
     root = requirements_root(workspace_path)
     items: List[RequirementItem] = []
     for entry in sorted(root.iterdir(), key=lambda p: p.name.lower()):
@@ -60,12 +68,18 @@ def list_requirements(workspace_path: str) -> List[RequirementItem]:
             continue
         if entry.name.startswith("."):
             continue
+        meta = read_requirement_meta(entry)
+        summary = _read_summary(entry)
+        title = str(meta.get("title") or summary or entry.name).strip()
         items.append(
             RequirementItem(
                 requirement_id=entry.name,
-                name=entry.name,
+                name=title,
                 path=str(entry.resolve()),
-                summary=_read_summary(entry),
+                summary=summary,
+                title=title,
+                status=str(meta.get("status") or "").strip(),
+                has_index=(entry / "requirement.yaml").is_file(),
             )
         )
     return items
@@ -82,13 +96,3 @@ def requirement_path(workspace_path: str, requirement_id: str) -> Path:
     if not path.is_dir():
         raise FileNotFoundError(f"需求目录不存在: {path}")
     return path
-
-
-def paths_equal(a: str, b: str) -> bool:
-    na = normalize_workspace_path(a)
-    nb = normalize_workspace_path(b)
-    if not na or not nb:
-        return na == nb
-    if os.name == "nt":
-        return na.casefold() == nb.casefold()
-    return na == nb

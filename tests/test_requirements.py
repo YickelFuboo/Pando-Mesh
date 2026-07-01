@@ -1,5 +1,6 @@
 import pytest
-from app.session.requirements import list_requirements, normalize_workspace_path, requirement_path
+from app.workspace.paths import normalize_workspace_path
+from app.workspace.requirements import list_requirements, requirement_path
 from app.session.workflow_store import WorkflowStore
 
 

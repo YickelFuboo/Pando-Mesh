@@ -11,8 +11,8 @@ from typing import Dict, List, Optional, Tuple
 from app.runtime.context import AgentContext, RuntimeContext
 from app.graph.plan_graph import GraphNode, PlanGraphState
 from app.graph.node_config import GraphNodeCliConfig, GraphNodeCliStep
-from app.session.requirements import normalize_workspace_path
-from app.session.workspace_ref import expand_session_placeholders
+from app.workspace.paths import normalize_workspace_path
+from app.workspace.refs import expand_session_placeholders
 
 # 编排调度为非交互模式，禁止 Claude Code 调用 AskUserQuestion（会卡住且无用户可答）
 _PLANNING_CLI_DISALLOWED_TOOLS: Tuple[str, ...] = ("AskUserQuestion",)

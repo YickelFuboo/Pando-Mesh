@@ -31,8 +31,11 @@
           文件暂无内容
         </div>
         <div v-else class="markdown-body">
-          <p v-if="selectedFile.resolvedPath" class="file-path">{{ selectedFile.resolvedPath }}</p>
-          <div class="markdown pm-markdown" v-html="renderedHtml" />
+          <MarkdownWithMeta
+            :content="fileContent"
+            :meta="fileMeta"
+            :file-path="selectedFile.resolvedPath"
+          />
         </div>
       </div>
     </div>
@@ -46,7 +49,7 @@ import {
   buildDeliverableFileItems,
   resolveNodeOutputPatterns,
 } from '../../utils/nodeDeliverables.js'
-import { renderMarkdown } from '../../utils/markdown.js'
+import MarkdownWithMeta from '../common/MarkdownWithMeta.vue'
 
 const props = defineProps({
   workflowId: { type: String, default: '' },
@@ -61,18 +64,18 @@ const contentError = ref('')
 const fileItems = ref([])
 const selectedFileId = ref('')
 const fileContent = ref('')
+const fileMeta = ref({})
 
 const selectedFile = computed(() => (
   fileItems.value.find((item) => item.id === selectedFileId.value) || null
 ))
-
-const renderedHtml = computed(() => renderMarkdown(fileContent.value))
 
 async function loadDeliverables() {
   if (!props.workflowId || !props.selectedNodeId) {
     fileItems.value = []
     selectedFileId.value = ''
     fileContent.value = ''
+    fileMeta.value = {}
     return
   }
   loading.value = true
@@ -89,6 +92,7 @@ async function loadDeliverables() {
       await loadFileContent(selectedFile.value)
     } else {
       fileContent.value = ''
+      fileMeta.value = {}
     }
   } catch (e) {
     fileItems.value = buildDeliverableFileItems(
@@ -98,6 +102,7 @@ async function loadDeliverables() {
     selectedFileId.value = fileItems.value[0]?.id || ''
     contentError.value = e?.message || '加载交付件失败'
     fileContent.value = ''
+    fileMeta.value = {}
   } finally {
     loading.value = false
   }
@@ -106,6 +111,7 @@ async function loadDeliverables() {
 async function loadFileContent(item) {
   if (!item) {
     fileContent.value = ''
+    fileMeta.value = {}
     contentError.value = ''
     return
   }
@@ -114,17 +120,21 @@ async function loadFileContent(item) {
   try {
     if (!item.exists) {
       fileContent.value = ''
+      fileMeta.value = {}
       contentError.value = '文件尚未生成，请完成该步骤后查看'
       return
     }
     if (item.preview?.trim()) {
       fileContent.value = item.preview
+      fileMeta.value = {}
       return
     }
     const data = await getWorkspaceFile(props.workflowId, item.path)
     fileContent.value = String(data?.content || '')
+    fileMeta.value = data?.meta || {}
   } catch (e) {
     fileContent.value = ''
+    fileMeta.value = {}
     contentError.value = e?.message || '读取文件失败'
   } finally {
     contentLoading.value = false

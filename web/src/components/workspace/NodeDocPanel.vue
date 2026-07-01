@@ -13,14 +13,19 @@
         <span v-if="activeView === 'ref' && activeRef && !activeRef.exists" class="doc-tag missing-tag">不存在</span>
       </div>
 
-      <div v-if="activeView === 'ref' && activeRef?.kind === 'glob'" class="dir-list glob-list">
-        <p v-if="!activeRef.matches?.length" class="dir-empty">通配路径未匹配到任何文件</p>
-        <ul v-else>
-          <li v-for="(match, mi) in activeRef.matches" :key="mi">
-            <span class="entry-kind">📄</span>
-            <span class="entry-name">{{ globMatchLabel(match) }}</span>
-          </li>
-        </ul>
+      <div v-if="activeView === 'ref' && activeRef?.kind === 'glob' && !activeRef.matches?.length" class="dir-empty">
+        通配路径未匹配到任何文件
+      </div>
+
+      <div v-else-if="activeView === 'ref' && activeRef?.kind === 'glob' && activeRef.matches?.length" class="glob-previews">
+        <section
+          v-for="(match, mi) in activeRef.matches"
+          :key="mi"
+          class="glob-preview-item"
+        >
+          <h3 class="glob-preview-title">{{ globMatchLabel(match) }}</h3>
+          <MarkdownWithMeta v-if="match.preview" :content="match.preview" />
+        </section>
       </div>
 
       <div v-else-if="activeView === 'ref' && activeRef?.kind === 'dir'" class="dir-list">
@@ -37,7 +42,17 @@
         路径尚未生成或不可访问：{{ activeRef.path }}
       </div>
 
-      <div v-else class="pm-markdown" v-html="renderedHtml" />
+      <MarkdownWithMeta
+        v-else-if="activeView === 'ref' && activeRef?.preview"
+        :content="activeRef.preview"
+      />
+
+      <MarkdownWithMeta
+        v-else-if="activeView === 'doc' || !activeRef"
+        :content="content"
+        :meta="docMeta"
+        :file-path="viewPath"
+      />
     </div>
   </section>
 </template>
@@ -50,7 +65,7 @@ import {
   buildLocalRequirementDocHint,
   formatDocLoadError,
 } from '../../utils/nodeDocFallback.js'
-import { renderMarkdown } from '../../utils/markdown.js'
+import MarkdownWithMeta from '../common/MarkdownWithMeta.vue'
 
 const props = defineProps({
   workflowId: { type: String, default: '' },
@@ -64,6 +79,7 @@ const activeNodeId = ref('')
 const loading = ref(false)
 const error = ref('')
 const content = ref('')
+const docMeta = ref({})
 const docTitle = ref('')
 const sourcePath = ref('')
 const generated = ref(false)
@@ -97,24 +113,6 @@ const viewPath = computed(() => {
     return activeRef.value.resolved_path || activeRef.value.path
   }
   return sourcePath.value
-})
-
-const renderedHtml = computed(() => {
-  if (activeView.value === 'ref' && activeRef.value?.kind === 'glob' && activeRef.value?.matches?.length) {
-    const parts = activeRef.value.matches
-      .map((match) => match.preview)
-      .filter(Boolean)
-    if (parts.length) {
-      return parts.map((text, index) => {
-        const label = globMatchLabel(activeRef.value.matches[index])
-        return `<h3>${label}</h3>${renderMarkdown(text)}`
-      }).join('<hr />')
-    }
-  }
-  if (activeView.value === 'ref' && activeRef.value?.preview) {
-    return renderMarkdown(activeRef.value.preview)
-  }
-  return renderMarkdown(content.value)
 })
 
 function globMatchLabel(match) {
@@ -173,6 +171,7 @@ async function loadDoc() {
       return
     }
     content.value = ''
+    docMeta.value = {}
     workspaceRefs.value = []
     error.value = hint || '加载文档失败'
   } finally {
@@ -185,6 +184,7 @@ async function loadDoc() {
 
 function applyDoc(doc) {
   content.value = doc?.content || ''
+  docMeta.value = doc?.meta || {}
   docTitle.value = doc?.label || doc?.node_id || '文档'
   sourcePath.value = doc?.source_path || ''
   generated.value = Boolean(doc?.generated)
@@ -308,6 +308,17 @@ defineExpose({ reload: loadDoc })
 }
 .dir-empty {
   color: #80868b;
-  margin: 0;
+  margin: 0 0 12px;
+}
+.glob-previews {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.glob-preview-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pm-text);
 }
 </style>

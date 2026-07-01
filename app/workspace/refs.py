@@ -3,7 +3,8 @@ from dataclasses import dataclass
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Pattern
-from app.session.requirements import normalize_workspace_path, requirement_path
+from app.workspace.paths import normalize_workspace_path
+from app.workspace.requirements import requirement_path
 _TEXT_SUFFIXES = {
     ".md", ".markdown", ".txt", ".json", ".yaml", ".yml", ".xml",
     ".html", ".htm", ".csv", ".log", ".py", ".js", ".ts", ".vue",

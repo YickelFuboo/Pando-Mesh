@@ -4,10 +4,14 @@ from fastapi import APIRouter, HTTPException, Query
 from app.graph.cli_history import CliHistoryReader
 from app.graph.plan_graph import PLAN_GRAPH_METADATA_KEY, PlanGraphState
 from app.session.node_doc import load_node_doc, load_requirement_readme
-from app.session.workspace_ref import resolve_workspace_ref_path
+from app.workspace.files import read_workspace_text_file
+from app.workspace.paths import normalize_workspace_path
+from app.workspace.requirements import list_requirements, requirement_path
+from app.workspace.features import load_features_tree
+from app.workspace.architectures import load_architectures_tree
+from app.workspace.requirement_index import load_requirements_tree
 from app.session.plan_mode import PlanMode, normalize_plan_mode
 from app.session.session_plan import hydrate_session_graph, session_plan_info
-from app.session.requirements import list_requirements, normalize_workspace_path, requirement_path
 from app.session.template_store import WorkflowTemplateStore, apply_template_to_record
 from app.session.workflow_service import WorkflowService
 
@@ -165,6 +169,63 @@ async def list_workspace_requirements(workspace_path: str):
         row["running"] = _service.is_running(record.workflow_id) if record else False
         payload.append(row)
     return payload
+
+
+@router.get("/meta/requirements/tree", summary="Workspace 需求分解树")
+async def list_workspace_requirements_tree(workspace_path: str):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        return load_requirements_tree(ws)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/meta/features", summary="Workspace 特性库树")
+async def list_workspace_features(workspace_path: str):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        return load_features_tree(ws)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/meta/architectures/tree", summary="Workspace 架构库树")
+async def list_workspace_architectures_tree(workspace_path: str):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        return load_architectures_tree(ws)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/meta/workspace-file", summary="读取 Workspace 文本文件")
+async def read_meta_workspace_file(workspace_path: str, path: str = Query(..., min_length=1)):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        return read_workspace_text_file(ws, path)
+    except ValueError as e:
+        detail = str(e)
+        if "过大" in detail:
+            raise HTTPException(status_code=413, detail=detail) from e
+        if "无法以文本" in detail:
+            raise HTTPException(status_code=415, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.post("/requirements/{requirement_id}/session", summary="打开或创建需求 Workflow Session")
@@ -534,9 +595,6 @@ async def get_node_doc(workflow_id: str, node_id: str):
     return doc.to_dict()
 
 
-_WORKSPACE_FILE_MAX_BYTES = 2 * 1024 * 1024
-
-
 @router.get("/{workflow_id}/workspace-file", summary="读取 Workspace 文本文件")
 async def read_workspace_file(workflow_id: str, path: str = Query(..., min_length=1)):
     record = await _service.store.get(workflow_id)
@@ -545,27 +603,17 @@ async def read_workspace_file(workflow_id: str, path: str = Query(..., min_lengt
     ws = normalize_workspace_path(record.workspace_path)
     if not ws:
         raise HTTPException(status_code=400, detail="Workspace 未配置")
-    resolved = resolve_workspace_ref_path(ws, record.requirement_id, path)
-    if resolved is None:
-        raise HTTPException(status_code=400, detail="路径无效或超出 Workspace")
-    if not resolved.is_file():
-        raise HTTPException(status_code=404, detail="文件不存在")
     try:
-        size = resolved.stat().st_size
-    except OSError as e:
-        raise HTTPException(status_code=404, detail="无法读取文件") from e
-    if size > _WORKSPACE_FILE_MAX_BYTES:
-        raise HTTPException(status_code=413, detail="文件过大，暂不支持在线预览")
-    try:
-        text = resolved.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        raise HTTPException(status_code=415, detail="无法以文本方式读取该文件") from e
-    return {
-        "path": path,
-        "resolved_path": str(resolved.resolve()),
-        "name": resolved.name,
-        "content": text,
-    }
+        return read_workspace_text_file(ws, path, requirement_id=record.requirement_id)
+    except ValueError as e:
+        detail = str(e)
+        if "过大" in detail:
+            raise HTTPException(status_code=413, detail=detail) from e
+        if "无法以文本" in detail:
+            raise HTTPException(status_code=415, detail=detail) from e
+        raise HTTPException(status_code=400, detail=detail) from e
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 @router.get("/{workflow_id}/nodes/{node_id}/output", summary="节点执行产出")

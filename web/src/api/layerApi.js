@@ -28,6 +28,26 @@ export function listRequirements(workspacePath) {
   return request(`/workflows/meta/requirements?${qs.toString()}`)
 }
 
+export function listFeatures(workspacePath) {
+  const qs = new URLSearchParams({ workspace_path: workspacePath })
+  return request(`/workflows/meta/features?${qs.toString()}`)
+}
+
+export function listArchitecturesTree(workspacePath) {
+  const qs = new URLSearchParams({ workspace_path: workspacePath })
+  return request(`/workflows/meta/architectures/tree?${qs.toString()}`)
+}
+
+export function getMetaWorkspaceFile(workspacePath, path) {
+  const qs = new URLSearchParams({ workspace_path: workspacePath, path })
+  return request(`/workflows/meta/workspace-file?${qs.toString()}`)
+}
+
+export function listRequirementsTree(workspacePath) {
+  const qs = new URLSearchParams({ workspace_path: workspacePath })
+  return request(`/workflows/meta/requirements/tree?${qs.toString()}`)
+}
+
 export function openRequirementSession(requirementId, payload) {
   return request(`/workflows/requirements/${encodeURIComponent(requirementId)}/session`, {
     method: 'POST',

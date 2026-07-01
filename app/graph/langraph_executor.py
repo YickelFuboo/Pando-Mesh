@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 from app.config.settings import settings
 from app.runtime.context import AgentContext, RuntimeContext
 from app.runtime.message import Message
-from app.session.workspace_ref import expand_session_placeholders
+from app.workspace.refs import expand_session_placeholders
 from app.graph.plan_graph import (
     DirectExecGraph,
     END_NODE,

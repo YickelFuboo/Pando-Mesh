@@ -13,6 +13,18 @@
         <nav class="header-nav" role="tablist">
           <button
             type="button"
+            class="nav-link nav-link-home"
+            :class="{ active: mainTab === 'home' }"
+            title="主页"
+            aria-label="主页"
+            @click="switchMainTab('home')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M12 3l9 8h-2v9h-5v-6H10v6H5v-9H3l9-8z" />
+            </svg>
+          </button>
+          <button
+            type="button"
             class="nav-link"
             :class="{ active: mainTab === 'features' }"
             @click="switchMainTab('features')"
@@ -25,6 +37,17 @@
           <button
             type="button"
             class="nav-link"
+            :class="{ active: mainTab === 'architectures' }"
+            @click="switchMainTab('architectures')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M4 6h7v2H4V6zm0 5h10v2H4v-2zm0 5h7v2H4v-2zM14 8h6v2h-6V8zm0 5h6v2h-6v-2z" />
+            </svg>
+            Architectures
+          </button>
+          <button
+            type="button"
+            class="nav-link"
             :class="{ active: mainTab === 'requirements' }"
             @click="switchMainTab('requirements')"
           >
@@ -32,6 +55,17 @@
               <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 13h8v2H8v-2zm0 4h8v2H8v-2z" />
             </svg>
             Requirements
+          </button>
+          <button
+            type="button"
+            class="nav-link"
+            :class="{ active: mainTab === 'knowledge' }"
+            @click="switchMainTab('knowledge')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M12 3a6 6 0 0 0-4.5 10.06V17a1 1 0 0 0 .55.9l3.45 1.72a1 1 0 0 0 .9 0L15.45 17.9A1 1 0 0 0 16 17v-3.94A6 6 0 0 0 12 3zm0 2a4 4 0 0 1 0 8 4 4 0 0 1 0-8z" />
+            </svg>
+            Knowledge
           </button>
           <button
             type="button"
@@ -234,51 +268,39 @@
       class="main"
       :class="{
         'workspace-main': activeMainView === 'workflow',
-        'page-main': activeMainView === 'features' || activeMainView === 'requirements',
+        'canvas-main': activeMainView === 'features' || activeMainView === 'architectures' || activeMainView === 'requirements',
+        'page-main': activeMainView === 'home' || activeMainView === 'knowledge',
       }"
     >
+      <HomePanel
+        v-if="activeMainView === 'home'"
+        key="tab-home"
+        :workspace-path="workspacePath"
+        @navigate="switchMainTab"
+      />
+
       <FeaturesPanel
-        v-if="activeMainView === 'features'"
+        v-else-if="activeMainView === 'features'"
         key="tab-features"
         :workspace-path="workspacePath"
-        :active-tab="mainTab"
-        @navigate="switchMainTab"
+      />
+
+      <ArchitecturesPanel
+        v-else-if="activeMainView === 'architectures'"
+        key="tab-architectures"
+        :workspace-path="workspacePath"
       />
 
       <RequirementsPanel
         v-else-if="activeMainView === 'requirements'"
         key="tab-requirements"
-        :active-tab="mainTab"
-        @navigate="switchMainTab"
-        v-model:workspace-path="workspacePath"
-        v-model:use-workflow="useWorkflow"
-        v-model:default-template-id="defaultTemplateId"
-        :workflow-templates="workflowTemplates"
-        :requirements="requirements"
-        :selected-requirement-id="selectedRequirementId"
-        :workflow-id="workflowId"
-        :req-loading="reqLoading"
-        :req-error="reqError"
-        :req-opening-id="reqOpeningId"
-        :req-init-id="reqInitId"
-        :req-start-id="reqStartId"
-        :batch-busy="batchBusy"
-        :checked-requirement-count="checkedRequirementCount"
-        :all-requirements-checked="allRequirementsChecked"
-        :executing="executing"
-        :awaiting-pending="awaitingPending"
-        :is-requirement-checked="isRequirementChecked"
-        @workspace-change="onWorkspaceChange"
-        @use-workflow-change="onUseWorkflowChange"
-        @default-template-change="onDefaultTemplateChange"
-        @refresh="refreshRequirements"
-        @toggle-select-all="toggleSelectAllRequirements"
-        @toggle-check="toggleRequirementCheck"
-        @select-requirement="(item) => selectRequirement(item, { switchToWorkflow: true })"
-        @start-requirement="startRequirementWorkflow"
-        @init-requirement="initRequirementFromTemplate"
-        @batch-start="batchStartRequirements"
-        @batch-init="batchInitRequirements"
+        :workspace-path="workspacePath"
+      />
+
+      <KnowledgePanel
+        v-else-if="activeMainView === 'knowledge'"
+        key="tab-knowledge"
+        :workspace-path="workspacePath"
       />
 
       <div v-else-if="activeMainView === 'workflow'" key="tab-workflow" class="workflow-shell">
@@ -397,8 +419,11 @@ import PlanningGraphPanel from './components/planning/PlanningGraphPanel.vue'
 import WorkflowPendingPanel from './components/planning/WorkflowPendingPanel.vue'
 import WorkflowChatPanel from './components/workspace/WorkflowChatPanel.vue'
 import WorkflowSessionSettingsDialog from './components/workspace/WorkflowSessionSettingsDialog.vue'
-import RequirementsPanel from './components/workspace/RequirementsPanel.vue'
+import HomePanel from './components/workspace/HomePanel.vue'
 import FeaturesPanel from './components/workspace/FeaturesPanel.vue'
+import ArchitecturesPanel from './components/workspace/ArchitecturesPanel.vue'
+import RequirementsPanel from './components/workspace/RequirementsPanel.vue'
+import KnowledgePanel from './components/workspace/KnowledgePanel.vue'
 import AppConfigDialog from './components/settings/AppConfigDialog.vue'
 import { extractPlanGraphSnapshot } from './utils/planGraphState.js'
 import { cloneGraphSpec } from './utils/planGraphEdit.js'
@@ -450,7 +475,7 @@ const checkedRequirementIds = ref([])
 const batchBusy = ref(false)
 const sidebarWidth = ref(readSidebarWidth())
 const sidebarResizing = ref(false)
-const mainTab = ref('workflow')
+const mainTab = ref('home')
 
 function switchMainTab(tab) {
   mainTab.value = tab
@@ -498,8 +523,11 @@ const isDynamicPlan = computed(() => {
 })
 
 const activeMainView = computed(() => {
+  if (mainTab.value === 'home') return 'home'
   if (mainTab.value === 'features') return 'features'
+  if (mainTab.value === 'architectures') return 'architectures'
   if (mainTab.value === 'requirements') return 'requirements'
+  if (mainTab.value === 'knowledge') return 'knowledge'
   if (mainTab.value === 'workflow' && workflow.value) return 'workflow'
   if (mainTab.value === 'workflow') return 'workflow-empty'
   return 'none'
@@ -1694,6 +1722,20 @@ body.split-dragging {
   padding: 0;
   overflow: auto;
   background: var(--pm-bg);
+}
+.main.canvas-main {
+  padding: 0;
+  overflow: hidden;
+  background: var(--pm-bg);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.nav-link-home {
+  padding: 8px 10px;
+}
+.nav-link-home .nav-icon {
+  margin: 0;
 }
 .workflow-shell {
   display: flex;

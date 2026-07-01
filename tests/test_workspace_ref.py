@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from app.session.workspace_ref import (
+from app.workspace.refs import (
     expand_session_placeholders,
     expand_workspace_ref_paths,
     has_path_pattern,
@@ -14,7 +14,7 @@ from app.session.workspace_ref import (
     parse_workspace_refs,
     resolve_workspace_ref_path,
 )
-from app.session.workspace_ref import NodeWorkspaceRef
+from app.workspace.refs import NodeWorkspaceRef
 
 
 def test_expand_session_placeholders(tmp_path: Path):

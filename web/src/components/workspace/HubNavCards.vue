@@ -1,5 +1,5 @@
 <template>
-  <div class="hub-nav-cards">
+  <div class="hub-nav-cards" :class="{ horizontal: layout === 'horizontal' }">
     <button
       v-for="item in items"
       :key="item.id"
@@ -29,7 +29,8 @@
 import { h } from 'vue'
 
 defineProps({
-  activeTab: { type: String, default: 'features' },
+  activeTab: { type: String, default: '' },
+  layout: { type: String, default: 'vertical' },
 })
 
 const emit = defineEmits(['navigate'])
@@ -42,10 +43,26 @@ const IconFeatures = {
   },
 }
 
+const IconArchitectures = {
+  render() {
+    return h('svg', { viewBox: '0 0 24 24', width: 22, height: 22 }, [
+      h('path', { fill: 'currentColor', d: 'M4 6h7v2H4V6zm0 5h10v2H4v-2zm0 5h7v2H4v-2zM14 8h6v2h-6V8zm0 5h6v2h-6v-2z' }),
+    ])
+  },
+}
+
 const IconRequirements = {
   render() {
     return h('svg', { viewBox: '0 0 24 24', width: 22, height: 22 }, [
       h('path', { fill: 'currentColor', d: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 13h8v2H8v-2zm0 4h8v2H8v-2z' }),
+    ])
+  },
+}
+
+const IconKnowledge = {
+  render() {
+    return h('svg', { viewBox: '0 0 24 24', width: 22, height: 22 }, [
+      h('path', { fill: 'currentColor', d: 'M12 3a6 6 0 0 0-4.5 10.06V17a1 1 0 0 0 .55.9l3.45 1.72a1 1 0 0 0 .9 0L15.45 17.9A1 1 0 0 0 16 17v-3.94A6 6 0 0 0 12 3zm0 2a4 4 0 0 1 0 8 4 4 0 0 1 0-8z' }),
     ])
   },
 }
@@ -64,8 +81,16 @@ const items = [
     tone: 'tone-features',
     label: 'FEATURE LIBRARY',
     title: 'Features',
-    desc: '浏览 Workspace 下的特性库与规格文档。',
+    desc: '浏览特性库目录树与拓扑关系，管理功能规格文档。',
     icon: IconFeatures,
+  },
+  {
+    id: 'architectures',
+    tone: 'tone-architectures',
+    label: 'ARCHITECTURE HUB',
+    title: 'Architectures',
+    desc: '浏览系统架构文档、逻辑视图与 NF 元素依赖关系。',
+    icon: IconArchitectures,
   },
   {
     id: 'requirements',
@@ -74,6 +99,14 @@ const items = [
     title: 'Requirements',
     desc: '配置 Workspace、模板与需求 Session。',
     icon: IconRequirements,
+  },
+  {
+    id: 'knowledge',
+    tone: 'tone-knowledge',
+    label: 'KNOWLEDGE BASE',
+    title: 'Knowledge',
+    desc: '预留：浏览与管理 {workspace}/knowledge/ 知识资产。',
+    icon: IconKnowledge,
   },
   {
     id: 'workflow',
@@ -87,6 +120,39 @@ const items = [
 </script>
 
 <style scoped>
+.hub-nav-cards.horizontal {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+.hub-nav-cards.horizontal .hub-nav-card {
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 20px 18px;
+  min-height: 168px;
+}
+.hub-nav-cards.horizontal .hub-nav-chevron {
+  display: none;
+}
+.hub-nav-cards.horizontal .hub-nav-body {
+  flex: 1;
+}
+@media (max-width: 1024px) {
+  .hub-nav-cards.horizontal {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .hub-nav-cards.horizontal {
+    grid-template-columns: 1fr;
+  }
+  .hub-nav-cards.horizontal .hub-nav-card {
+    min-height: 0;
+  }
+}
 .hub-nav-cards {
   display: flex;
   flex-direction: column;
@@ -117,8 +183,14 @@ const items = [
 .hub-nav-card.tone-features.active {
   background: var(--pm-accent-features-soft);
 }
+.hub-nav-card.tone-architectures.active {
+  background: var(--pm-accent-architectures-soft);
+}
 .hub-nav-card.tone-requirements.active {
   background: var(--pm-accent-requirements-soft);
+}
+.hub-nav-card.tone-knowledge.active {
+  background: var(--pm-accent-knowledge-soft);
 }
 .hub-nav-card.tone-workflow.active {
   background: var(--pm-accent-workflow-soft);
@@ -137,9 +209,17 @@ const items = [
   background: var(--pm-accent-features-icon);
   color: var(--pm-accent-features);
 }
+.tone-architectures .hub-nav-icon {
+  background: var(--pm-accent-architectures-icon);
+  color: var(--pm-accent-architectures);
+}
 .tone-requirements .hub-nav-icon {
   background: var(--pm-accent-requirements-icon);
   color: var(--pm-accent-requirements);
+}
+.tone-knowledge .hub-nav-icon {
+  background: var(--pm-accent-knowledge-icon);
+  color: var(--pm-accent-knowledge);
 }
 .tone-workflow .hub-nav-icon {
   background: var(--pm-accent-workflow-icon);

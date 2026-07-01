@@ -168,7 +168,7 @@ class WorkflowStore:
         workspace_path: str,
         requirement_id: str,
     ) -> Optional[WorkflowRecord]:
-        from app.session.requirements import paths_equal
+        from app.workspace.paths import paths_equal
         req_id = str(requirement_id or "").strip()
         if not req_id:
             return None

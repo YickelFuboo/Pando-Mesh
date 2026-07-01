@@ -2,8 +2,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from app.graph.plan_graph import DirectExecGraph, GraphNode
-from app.session.requirements import normalize_workspace_path, requirement_path
-from app.session.workspace_ref import (
+from app.workspace.markdown_meta import normalize_meta, split_markdown_frontmatter
+from app.workspace.paths import normalize_workspace_path
+from app.workspace.requirements import requirement_path
+from app.workspace.refs import (
     NodeWorkspaceRef,
     expand_workspace_ref_paths,
     inspect_workspace_refs,
@@ -19,6 +21,7 @@ class NodeDocResult:
     source_path: str = ""
     generated: bool = False
     workspace_refs: List[Dict[str, Any]] = field(default_factory=list)
+    meta: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -28,7 +31,16 @@ class NodeDocResult:
             "source_path": self.source_path,
             "generated": self.generated,
             "workspace_refs": list(self.workspace_refs),
+            "meta": dict(self.meta),
         }
+
+
+def _read_doc_text(path: Path) -> tuple[str, Dict[str, Any]]:
+    text = _read_text(path)
+    if not text:
+        return "", {}
+    meta, body = split_markdown_frontmatter(text)
+    return body, normalize_meta(meta)
 
 
 def _read_text(path: Path) -> Optional[str]:
@@ -154,14 +166,16 @@ def load_requirement_readme(workspace_path: str, requirement_id: str) -> Optiona
     except (FileNotFoundError, ValueError):
         return None
     for name in ("README.md", "readme.md", "requirement.md", "spec.md"):
-        text = _read_text(req_dir / name)
-        if text:
+        path = req_dir / name
+        body, meta = _read_doc_text(path)
+        if body:
             return NodeDocResult(
                 node_id="",
                 label="需求说明",
-                content=text,
-                source_path=str((req_dir / name).resolve()),
+                content=body,
+                source_path=str(path.resolve()),
                 generated=False,
+                meta=meta,
             )
     return None
 
@@ -191,15 +205,16 @@ def load_node_doc(
         try:
             req_dir = requirement_path(ws, requirement_id)
             for path in _candidate_doc_paths(ws, requirement_id, req_dir, node):
-                text = _read_text(path)
-                if text:
+                body, meta = _read_doc_text(path)
+                if body:
                     return NodeDocResult(
                         node_id=node.id,
                         label=label,
-                        content=text,
+                        content=body,
                         source_path=str(path.resolve()),
                         generated=False,
                         workspace_refs=workspace_refs,
+                        meta=meta,
                     )
         except (FileNotFoundError, ValueError):
             pass
