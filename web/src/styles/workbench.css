@@ -1,18 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 :root {
-  --pm-bg: #f5f6f8;
+  --pm-bg: #f4f6f8;
   --pm-surface: #ffffff;
-  --pm-surface-muted: #fafafa;
-  --pm-border: #ebebeb;
-  --pm-border-strong: #d9d9d9;
-  --pm-primary: #1677ff;
-  --pm-primary-hover: #4096ff;
-  --pm-primary-soft: #e6f4ff;
-  --pm-text: #1f1f1f;
-  --pm-text-secondary: #8c8c8c;
-  --pm-success: #52c41a;
-  --pm-warning: #faad14;
-  --pm-danger: #ff4d4f;
-  --pm-radius: 8px;
-  --pm-radius-lg: 12px;
-  --pm-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --pm-surface-muted: #f9fafb;
+  --pm-border: #e8eaed;
+  --pm-border-strong: #dadce0;
+  --pm-primary: #00b894;
+  --pm-primary-hover: #00a383;
+  --pm-primary-soft: #e6faf5;
+  --pm-primary-muted: #b2ece0;
+  --pm-text: #1a1a1a;
+  --pm-text-secondary: #6b7280;
+  --pm-text-muted: #9ca3af;
+  --pm-success: #00b894;
+  --pm-warning: #f59e0b;
+  --pm-danger: #ef4444;
+  --pm-radius: 10px;
+  --pm-radius-lg: 16px;
+  --pm-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --pm-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06);
+  --pm-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.08);
+  --pm-accent-features: #00b894;
+  --pm-accent-features-soft: #e6faf5;
+  --pm-accent-features-icon: #ccf5ec;
+  --pm-accent-requirements: #f97316;
+  --pm-accent-requirements-soft: #fff4ed;
+  --pm-accent-requirements-icon: #ffedd5;
+  --pm-accent-workflow: #3b82f6;
+  --pm-accent-workflow-soft: #eff6ff;
+  --pm-accent-workflow-icon: #dbeafe;
 }

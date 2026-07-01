@@ -5,43 +5,67 @@
     :style="mainTab === 'workflow' ? { '--sidebar-width': `${sidebarWidth}px` } : undefined"
   >
     <header class="app-header">
-      <div class="header-brand">
-        <h1>Pando-Mesh</h1>
+      <div class="header-start">
+        <div class="header-brand">
+          <span class="brand-mark" aria-hidden="true">P</span>
+          <h1>Pando-Mesh</h1>
+        </div>
+        <nav class="header-nav" role="tablist">
+          <button
+            type="button"
+            class="nav-link"
+            :class="{ active: mainTab === 'features' }"
+            @click="switchMainTab('features')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M4 6h7v7H4V6zm9 0h7v7h-7V6zM4 15h7v7H4v-7zm9 0h7v7h-7v-7z" />
+            </svg>
+            Features
+          </button>
+          <button
+            type="button"
+            class="nav-link"
+            :class="{ active: mainTab === 'requirements' }"
+            @click="switchMainTab('requirements')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 2l5 5h-5V4zM8 13h8v2H8v-2zm0 4h8v2H8v-2z" />
+            </svg>
+            Requirements
+          </button>
+          <button
+            type="button"
+            class="nav-link"
+            :class="{ active: mainTab === 'workflow' }"
+            @click="switchMainTab('workflow')"
+          >
+            <svg class="nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path fill="currentColor" d="M4 6c0-1.1.9-2 2-2h3v2H6v3H4V6zm14-2h-3v2h3v3h2V6c0-1.1-.9-2-2-2zM4 18v-3H2v3c0 1.1.9 2 2 2h3v-2H4zm16 0h-3v2h3c1.1 0 2-.9 2-2v-3h-2v3zM9 10h6v4H9v-4z" />
+            </svg>
+            WorkFlow
+          </button>
+        </nav>
       </div>
-      <nav class="header-nav main-tabs" role="tablist">
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: mainTab === 'workflow' }"
-          @click="switchMainTab('workflow')"
-        >
-          工作流
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: mainTab === 'templates' }"
-          @click="switchMainTab('templates')"
-        >
-          模板管理
-        </button>
-        <button
-          type="button"
-          class="tab-btn"
-          :class="{ active: mainTab === 'agents' }"
-          @click="switchMainTab('agents')"
-        >
-          Agent 注册
-        </button>
-      </nav>
-      <div class="header-actions">
+      <div class="header-end">
+        <div class="header-workspace">
+          <label class="header-workspace-label" for="header-workspace-input">作业空间路径</label>
+          <input
+            id="header-workspace-input"
+            v-model="workspacePath"
+            class="header-workspace-input"
+            placeholder="D:/projects/my-app"
+            :title="workspacePath"
+            @change="onWorkspaceChange"
+          />
+        </div>
+        <div class="header-actions">
         <template v-if="mainTab === 'workflow'">
         <button
           v-if="workflow && isDynamicPlan"
           type="button"
           class="btn"
           :disabled="generating"
-          :title="llmStatus?.available === false ? 'LLM 未配置，仍可填写目标；生成前请在系统设置中配置模型' : undefined"
+          :title="llmStatus?.available === false ? 'LLM 未配置，仍可填写目标；生成前请在配置中设置模型' : undefined"
           @click="onGenerateGraph"
         >
           {{ generating ? '生成中…' : 'AI 生成拓扑' }}
@@ -58,9 +82,9 @@
         <button
           type="button"
           class="icon-btn"
-          title="系统设置"
-          aria-label="系统设置"
-          @click="settingsVisible = true"
+          title="配置"
+          aria-label="配置"
+          @click="configVisible = true"
         >
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
             <path
@@ -69,19 +93,11 @@
             />
           </svg>
         </button>
+        </div>
       </div>
     </header>
 
     <aside v-if="mainTab === 'workflow'" class="sidebar">
-      <div class="sidebar-section">
-        <h2>Workspace</h2>
-        <input
-          v-model="workspacePath"
-          class="workspace-input"
-          placeholder="D:/projects/my-app"
-          @change="onWorkspaceChange"
-        />
-      </div>
       <div class="sidebar-section">
         <div class="switch-row">
           <span class="switch-label">使用工作流模板</span>
@@ -103,7 +119,7 @@
         </select>
         <p class="sidebar-hint">
           {{ useWorkflow
-            ? '新建 Session 时引用所选模板；已有 Session 可点「初始化」套用新模板；拓扑请在「模板管理」中编辑'
+            ? '新建 Session 时引用所选模板；已有 Session 可点「初始化」套用新模板；拓扑请在右上角「配置 → 模板管理」中编辑'
             : '关闭后由 AI 动态规划生成编排拓扑' }}
         </p>
       </div>
@@ -218,21 +234,51 @@
       class="main"
       :class="{
         'workspace-main': activeMainView === 'workflow',
-        'tab-main': activeMainView === 'templates' || activeMainView === 'agents',
+        'page-main': activeMainView === 'features' || activeMainView === 'requirements',
       }"
     >
-      <WorkflowTemplatePanel
-        v-if="activeMainView === 'templates'"
-        key="tab-templates"
-        ref="templatePanelRef"
-        @changed="loadWorkflowTemplates"
+      <FeaturesPanel
+        v-if="activeMainView === 'features'"
+        key="tab-features"
+        :workspace-path="workspacePath"
+        :active-tab="mainTab"
+        @navigate="switchMainTab"
       />
 
-      <AgentRegistryPanel
-        v-else-if="activeMainView === 'agents'"
-        key="tab-agents"
-        ref="agentPanelRef"
-        @changed="loadAgents"
+      <RequirementsPanel
+        v-else-if="activeMainView === 'requirements'"
+        key="tab-requirements"
+        :active-tab="mainTab"
+        @navigate="switchMainTab"
+        v-model:workspace-path="workspacePath"
+        v-model:use-workflow="useWorkflow"
+        v-model:default-template-id="defaultTemplateId"
+        :workflow-templates="workflowTemplates"
+        :requirements="requirements"
+        :selected-requirement-id="selectedRequirementId"
+        :workflow-id="workflowId"
+        :req-loading="reqLoading"
+        :req-error="reqError"
+        :req-opening-id="reqOpeningId"
+        :req-init-id="reqInitId"
+        :req-start-id="reqStartId"
+        :batch-busy="batchBusy"
+        :checked-requirement-count="checkedRequirementCount"
+        :all-requirements-checked="allRequirementsChecked"
+        :executing="executing"
+        :awaiting-pending="awaitingPending"
+        :is-requirement-checked="isRequirementChecked"
+        @workspace-change="onWorkspaceChange"
+        @use-workflow-change="onUseWorkflowChange"
+        @default-template-change="onDefaultTemplateChange"
+        @refresh="refreshRequirements"
+        @toggle-select-all="toggleSelectAllRequirements"
+        @toggle-check="toggleRequirementCheck"
+        @select-requirement="(item) => selectRequirement(item, { switchToWorkflow: true })"
+        @start-requirement="startRequirementWorkflow"
+        @init-requirement="initRequirementFromTemplate"
+        @batch-start="batchStartRequirements"
+        @batch-init="batchInitRequirements"
       />
 
       <div v-else-if="activeMainView === 'workflow'" key="tab-workflow" class="workflow-shell">
@@ -293,7 +339,7 @@
       </div>
 
       <div v-else-if="activeMainView === 'workflow-empty'" key="tab-workflow-empty" class="empty-hint">
-        {{ workspacePath ? '请从左侧选择需求以打开 Workflow Session' : '请先在左侧填写 Workspace 路径' }}
+        {{ workspacePath ? '请从左侧选择需求以打开 Workflow Session' : '请先在顶栏填写作业空间路径' }}
       </div>
     </main>
 
@@ -303,7 +349,7 @@
           <h3 id="generate-graph-title">AI 生成拓扑</h3>
           <p class="dialog-desc">填写任务目标，AI 将根据目标生成编排拓扑。</p>
           <p v-if="llmStatus && !llmStatus.available" class="dialog-warn">
-            LLM 未配置，请先在右上角「系统设置」中配置模型后再开始生成。
+            LLM 未配置，请先在右上角「配置 → 模型服务」中设置模型后再开始生成。
           </p>
           <label class="dialog-field">
             任务目标
@@ -335,10 +381,12 @@
       @save="onSessionSettingsSave"
     />
 
-    <ModelSettingsDialog
-      :visible="settingsVisible"
-      @close="settingsVisible = false"
-      @saved="onSettingsSaved"
+    <AppConfigDialog
+      :visible="configVisible"
+      @close="configVisible = false"
+      @models-saved="onSettingsSaved"
+      @templates-changed="loadWorkflowTemplates"
+      @agents-changed="loadAgents"
     />
   </div>
 </template>
@@ -349,9 +397,9 @@ import PlanningGraphPanel from './components/planning/PlanningGraphPanel.vue'
 import WorkflowPendingPanel from './components/planning/WorkflowPendingPanel.vue'
 import WorkflowChatPanel from './components/workspace/WorkflowChatPanel.vue'
 import WorkflowSessionSettingsDialog from './components/workspace/WorkflowSessionSettingsDialog.vue'
-import AgentRegistryPanel from './components/register/AgentRegistryPanel.vue'
-import WorkflowTemplatePanel from './components/template/WorkflowTemplatePanel.vue'
-import ModelSettingsDialog from './components/settings/ModelSettingsDialog.vue'
+import RequirementsPanel from './components/workspace/RequirementsPanel.vue'
+import FeaturesPanel from './components/workspace/FeaturesPanel.vue'
+import AppConfigDialog from './components/settings/AppConfigDialog.vue'
 import { extractPlanGraphSnapshot } from './utils/planGraphState.js'
 import { cloneGraphSpec } from './utils/planGraphEdit.js'
 import {
@@ -390,7 +438,6 @@ const EMPTY_GRAPH = { nodes: [], edges: [], entry: '' }
 const useWorkflow = ref((localStorage.getItem(PLAN_MODE_STORAGE_KEY) || 'template') !== 'dynamic')
 const defaultTemplateId = ref(localStorage.getItem(DEFAULT_TEMPLATE_STORAGE_KEY) || '')
 const workflowTemplates = ref([])
-const templatePanelRef = ref(null)
 const workspacePath = ref(localStorage.getItem(WORKSPACE_STORAGE_KEY) || '')
 const requirements = ref([])
 const selectedRequirementId = ref('')
@@ -407,18 +454,8 @@ const mainTab = ref('workflow')
 
 function switchMainTab(tab) {
   mainTab.value = tab
-  if (tab === 'templates') {
-    nextTick(() => templatePanelRef.value?.refresh?.())
-  } else if (tab === 'agents') {
-    nextTick(() => agentPanelRef.value?.refresh?.())
-  }
 }
 
-watch(mainTab, (tab) => {
-  if (tab === 'templates') {
-    loadWorkflowTemplates()
-  }
-})
 const workflowId = ref('')
 const workflow = ref(null)
 const graphSpec = ref(null)
@@ -427,7 +464,7 @@ const llmStatus = ref(null)
 const generating = ref(false)
 const pendingBusy = ref(false)
 const reviseBusy = ref(false)
-const settingsVisible = ref(false)
+const configVisible = ref(false)
 const sessionSettingsVisible = ref(false)
 const sessionSettingsSaving = ref(false)
 const generateGraphVisible = ref(false)
@@ -441,7 +478,6 @@ const PLAN_GRAPH_MIN_H = 120
 const PLAN_GRAPH_DEFAULT_H = 168
 const topologySelectedNodeId = ref(null)
 const selectedPlanNodeId = ref(null)
-const agentPanelRef = ref(null)
 let pollTimer = null
 
 const snapshot = computed(() => {
@@ -462,8 +498,8 @@ const isDynamicPlan = computed(() => {
 })
 
 const activeMainView = computed(() => {
-  if (mainTab.value === 'templates') return 'templates'
-  if (mainTab.value === 'agents') return 'agents'
+  if (mainTab.value === 'features') return 'features'
+  if (mainTab.value === 'requirements') return 'requirements'
   if (mainTab.value === 'workflow' && workflow.value) return 'workflow'
   if (mainTab.value === 'workflow') return 'workflow-empty'
   return 'none'
@@ -796,7 +832,7 @@ async function initRequirementFromTemplate(item) {
   }
 }
 
-async function selectRequirement(item) {
+async function selectRequirement(item, options = {}) {
   const ws = workspacePath.value.trim()
   if (!ws || !item?.requirement_id || reqOpeningId.value) return
   const openingNew = !item.workflow_id
@@ -820,6 +856,9 @@ async function selectRequirement(item) {
       await refreshRequirements()
     }
     await loadWorkflow(record.workflow_id)
+    if (options.switchToWorkflow) {
+      mainTab.value = 'workflow'
+    }
   } catch (e) {
     alert(e?.message || '打开 Session 失败')
   } finally {
@@ -916,7 +955,7 @@ async function confirmGenerateGraph() {
     llmStatus.value = { available: false }
   }
   if (!llmStatus.value?.available) {
-    generateGraphError.value = 'LLM 未配置，请先打开右上角系统设置配置模型'
+    generateGraphError.value = 'LLM 未配置，请先打开右上角配置中的模型服务'
     return
   }
   form.user_goal = goal
@@ -1122,9 +1161,10 @@ html, body, #app {
   margin: 0;
 }
 body {
-  font-family: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
-  background: var(--pm-bg, #f5f6f8);
-  color: var(--pm-text, #1f1f1f);
+  font-family: "Inter", "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  background: var(--pm-bg, #f4f6f8);
+  color: var(--pm-text, #1a1a1a);
+  -webkit-font-smoothing: antialiased;
 }
 input,
 textarea,
@@ -1172,40 +1212,136 @@ body.split-dragging {
   grid-column: 1 / -1;
   position: relative;
   z-index: 10;
-  display: grid;
-  grid-template-columns: minmax(120px, 1fr) auto minmax(120px, 1fr);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  height: 60px;
+  background: var(--pm-surface, #fff);
+  border-bottom: 1px solid var(--pm-border, #e8eaed);
+}
+.header-start {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+.header-end {
+  display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 20px;
-  height: 52px;
-  background: var(--pm-surface, #fff);
-  border-bottom: 1px solid var(--pm-border, #ebebeb);
-  box-shadow: var(--pm-shadow);
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .header-brand {
-  grid-column: 1;
   justify-self: start;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--pm-primary, #00b894);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
 }
 .header-brand h1 {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   white-space: nowrap;
+  color: var(--pm-text);
 }
 .header-nav {
-  grid-column: 2;
-  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.header-workspace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-right: 12px;
+  border-right: 1px solid var(--pm-border);
+}
+.header-workspace-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pm-text-secondary);
+  white-space: nowrap;
+}
+.header-workspace-input {
+  width: 300px;
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: var(--pm-radius);
+  font-size: 12px;
+  background: var(--pm-surface);
+  color: var(--pm-text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.header-workspace-input:focus {
+  outline: none;
+  border-color: var(--pm-primary);
+  box-shadow: 0 0 0 3px var(--pm-primary-soft);
+}
+.header-workspace-input::placeholder {
+  color: var(--pm-text-muted);
 }
 .header-actions {
-  grid-column: 3;
-  justify-self: end;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
   min-width: 0;
+}
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: var(--pm-radius);
+  background: transparent;
+  color: var(--pm-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, background 0.15s;
+}
+.nav-link .nav-icon {
+  opacity: 0.7;
+}
+.nav-link:hover {
+  color: var(--pm-text);
+  background: var(--pm-surface-muted);
+}
+.nav-link.active {
+  color: var(--pm-primary);
+  font-weight: 600;
+  background: var(--pm-primary-soft);
+}
+.nav-link.active .nav-icon {
+  opacity: 1;
 }
 .icon-btn {
   display: inline-flex;
@@ -1214,40 +1350,18 @@ body.split-dragging {
   width: 36px;
   height: 36px;
   padding: 0;
-  border: 1px solid #dadce0;
-  border-radius: 8px;
-  background: #fff;
-  color: #5f6368;
+  border: 1px solid var(--pm-border-strong);
+  border-radius: var(--pm-radius);
+  background: var(--pm-surface);
+  color: var(--pm-text-secondary);
   cursor: pointer;
   flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 .icon-btn:hover {
-  background: #f8f9fa;
-  color: #1a73e8;
-  border-color: #c6dafc;
-}
-.main-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--pm-bg, #f5f6f8);
-  border-radius: var(--pm-radius, 8px);
-}
-.tab-btn {
-  padding: 7px 16px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--pm-text-secondary, #8c8c8c);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.tab-btn.active {
-  background: var(--pm-surface, #fff);
-  color: var(--pm-primary, #1677ff);
-  box-shadow: var(--pm-shadow);
+  background: var(--pm-surface-muted);
+  color: var(--pm-primary);
+  border-color: var(--pm-primary-muted);
 }
 .btn-primary {
   background: var(--pm-primary, #1677ff);
@@ -1292,7 +1406,7 @@ body.split-dragging {
 }
 .sidebar-resize-handle:hover,
 .sidebar-resize-handle.dragging {
-  background: #eef4fd;
+  background: var(--pm-primary-soft);
 }
 .sidebar-resize-handle-bar {
   position: absolute;
@@ -1302,13 +1416,13 @@ body.split-dragging {
   height: 48px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
-  background: #c6dafc;
+  background: var(--pm-primary-muted);
   transition: background 0.15s, height 0.15s;
 }
 .sidebar-resize-handle:hover .sidebar-resize-handle-bar,
 .sidebar-resize-handle.dragging .sidebar-resize-handle-bar {
   height: 64px;
-  background: #1a73e8;
+  background: var(--pm-primary);
 }
 .sidebar-section + .sidebar-section {
   margin-top: 16px;
@@ -1396,7 +1510,7 @@ body.split-dragging {
   transition: transform 0.2s;
 }
 .toggle-input:checked + .toggle-track {
-  background: #1a73e8;
+  background: var(--pm-primary);
 }
 .toggle-input:checked + .toggle-track::after {
   transform: translateX(16px);
@@ -1477,8 +1591,8 @@ body.split-dragging {
 }
 .req-list li:hover { background: #f8f9fa; }
 .req-list li.active {
-  background: #e8f0fe;
-  border-color: #c6dafc;
+  background: var(--pm-primary-soft);
+  border-color: var(--pm-primary-muted);
 }
 .req-main {
   min-width: 0;
@@ -1515,9 +1629,9 @@ body.split-dragging {
   height: 22px;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid #c6dafc;
-  background: #e8f0fe;
-  color: #1967d2;
+  border: 1px solid var(--pm-primary-muted);
+  background: var(--pm-primary-soft);
+  color: var(--pm-primary-hover);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1525,7 +1639,7 @@ body.split-dragging {
   flex-shrink: 0;
 }
 .btn-play:hover:not(:disabled) {
-  background: #d2e3fc;
+  background: var(--pm-primary-muted);
 }
 .btn-play:disabled {
   opacity: 0.45;
@@ -1548,13 +1662,13 @@ body.split-dragging {
   font-size: 10px;
   line-height: 1.4;
   border-radius: 999px;
-  border: 1px solid #c6dafc;
-  background: #e8f0fe;
-  color: #1967d2;
+  border: 1px solid var(--pm-primary-muted);
+  background: var(--pm-primary-soft);
+  color: var(--pm-primary-hover);
   cursor: pointer;
 }
 .btn-init:hover:not(:disabled) {
-  background: #d2e3fc;
+  background: var(--pm-primary-muted);
 }
 .btn-init:disabled {
   opacity: 0.6;
@@ -1576,12 +1690,10 @@ body.split-dragging {
   padding: 0;
   overflow: hidden;
 }
-.tab-main {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
+.main.page-main {
+  padding: 0;
   overflow: auto;
+  background: var(--pm-bg);
 }
 .workflow-shell {
   display: flex;
