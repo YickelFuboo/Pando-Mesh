@@ -131,8 +131,9 @@ watch(
   background: rgba(32, 33, 36, 0.42);
 }
 .config-dialog {
-  width: min(920px, 100%);
-  max-height: min(88vh, 860px);
+  width: min(1280px, 96vw);
+  min-height: min(720px, 82vh);
+  max-height: min(92vh, 980px);
   background: var(--pm-surface);
   display: flex;
   flex-direction: column;
@@ -175,7 +176,7 @@ watch(
   overflow: hidden;
 }
 .config-nav {
-  width: 148px;
+  width: 168px;
   flex-shrink: 0;
   padding: 12px 10px;
   border-right: 1px solid #e8eaed;
@@ -204,7 +205,7 @@ watch(
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 16px 18px;
+  padding: 20px 24px;
 }
 .config-content :deep(.template-panel),
 .config-content :deep(.agent-panel) {

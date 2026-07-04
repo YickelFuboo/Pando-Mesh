@@ -1,0 +1,98 @@
+{
+  "template_id": "tpl_rev_features",
+  "name": "存量逆向·业务特性",
+  "description": "架构逆向完成后，从代码与架构成果反向挖掘 features/ 特性与场景（Workspace: skills/rev-* 目录）",
+  "user_goal": "对 {workspace} 存量产品完成业务特性与场景逆向，并同步特性索引",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_code_to_scenario",
+    "nodes": [
+      {
+        "id": "step_code_to_scenario",
+        "label": "代码到场景挖掘",
+        "task": "请使用 {workspace}/skills/rev-code-to-scenario 这个 skill，结合代码事实、架构元素与历史方案，逆向生成或更新 features/ 目录下的特性树、spec.md 与 SCENARIO_*.md",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "repos/{*}/.agent/spec.md",
+          "repos/{*}/.agent/design.md",
+          "architectures/logic_view/elements_tree.yaml",
+          "architectures/logic_view/elements/{*}/spec.md"
+        ],
+        "output_doc_paths": [
+          "features/feature_root.yaml",
+          "features/{*}/feature.yaml",
+          "features/{*}/spec.md",
+          "features/{*}/arch_ref.yaml",
+          "features/{*}/SCENARIO_{*}.md"
+        ]
+      },
+      {
+        "id": "step_feature_index",
+        "label": "特性索引同步",
+        "task": "请使用 {workspace}/skills/fwd-feature-index-update 这个 skill，根据逆向产出的 features/ 内容同步特性索引与统计信息",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "features/feature_root.yaml",
+          "features/{*}/feature.yaml"
+        ],
+        "output_doc_paths": [
+          "features/feature_root.yaml",
+          "features/{*}/feature.yaml"
+        ]
+      },
+      {
+        "id": "step_feature_artifact_verify",
+        "label": "特性产物校验",
+        "task": "请使用 {workspace}/skills/qa-artifact-auto-verify 这个 skill，校验 features/ 下 spec.md 与 SCENARIO_*.md 的单一权威源规则及跨视角引用完整性",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "check",
+        "input_doc_paths": [
+          "features/feature_root.yaml",
+          "features/{*}/feature.yaml",
+          "features/{*}/spec.md",
+          "features/{*}/SCENARIO_{*}.md"
+        ]
+      },
+      {
+        "id": "gate_feature_rev_confirm",
+        "label": "业务逆向确认",
+        "task": "请确认 Features 树、场景与架构关联是否正确；通过后请切换模板 tpl_rev_test 继续测试覆盖逆向",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "逆向",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_code_to_scenario", "condition": "always" },
+      { "from": "step_code_to_scenario", "to": "step_feature_index", "condition": "always" },
+      { "from": "step_feature_index", "to": "step_feature_artifact_verify", "condition": "always" },
+      { "from": "step_feature_artifact_verify", "to": "gate_feature_rev_confirm", "condition": "pass" },
+      { "from": "step_feature_artifact_verify", "to": "step_code_to_scenario", "condition": "reject" },
+      { "from": "gate_feature_rev_confirm", "to": "END", "condition": "pass" },
+      { "from": "gate_feature_rev_confirm", "to": "step_code_to_scenario", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:30:00"
+}

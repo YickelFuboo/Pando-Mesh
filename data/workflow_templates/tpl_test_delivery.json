@@ -1,0 +1,164 @@
+{
+  "template_id": "tpl_test_delivery",
+  "name": "集成测试执行与交付",
+  "description": "测试资产就绪后，执行 IT/E2E、分析结果、质量度量并生成交付报告（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成集成测试执行、质量分析与交付归档",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "gate_it_exec",
+    "nodes": [
+      {
+        "id": "gate_it_exec",
+        "label": "集成测试执行",
+        "task": "请按 env_topology.yaml 部署版本包，执行 regression_test_list 所列 IT/E2E 用例，并将结果写入 test_execution_report.md",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "测试",
+        "node_role": "execute"
+      },
+      {
+        "id": "step_failure_analysis",
+        "label": "失败根因分析",
+        "task": "请使用 {workspace}/skills/17-fwd-failure-root-cause 这个 skill，分析 {requirement_id} 集成测试失败用例并输出根因分类报告",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/test_changes/test_execution_report.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+        ]
+      },
+      {
+        "id": "step_artifact_verify",
+        "label": "测试产物校验",
+        "task": "请使用 {workspace}/skills/qa-artifact-auto-verify 这个 skill，校验 {requirement_id} 测试产物与需求/架构/场景覆盖的一致性",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/test_changes/test_execution_report.md",
+          "requirements/{requirement_id}/test_changes/regression_test_list.md",
+          "tests/test_cases/{*}/TC_{*}.md"
+        ]
+      },
+      {
+        "id": "step_quality_metrics",
+        "label": "质量度量",
+        "task": "请使用 {workspace}/skills/18-fwd-quality-metrics 这个 skill，汇总 {requirement_id} 的 UT 与集成测试结果并输出质量度量报告",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/test_changes/ut_execution_report.md",
+          "requirements/{requirement_id}/test_changes/test_execution_report.md",
+          "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/quality_report.md"
+        ]
+      },
+      {
+        "id": "step_hardening",
+        "label": "加固建议",
+        "task": "请使用 {workspace}/skills/19-fwd-hardening-suggestions 这个 skill，基于 {requirement_id} 质量度量结果输出加固建议",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/test_changes/quality_report.md",
+          "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/hardening_suggestions.md"
+        ]
+      },
+      {
+        "id": "step_delivery_report",
+        "label": "交付报告生成",
+        "task": "请使用 {workspace}/skills/fwd-delivery-report-gen 这个 skill，汇总 {requirement_id} 全流程产物并生成交付报告",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "requirements/{requirement_id}/test_changes/quality_report.md",
+          "requirements/{requirement_id}/test_changes/hardening_suggestions.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/delivery_report.md"
+        ]
+      },
+      {
+        "id": "step_test_gate",
+        "label": "测试阶段门禁",
+        "task": "请使用 {workspace}/skills/qa-stage-gate-check 这个 skill，依据 knowledge/质量门禁/测试阶段门禁.yaml 检查 {requirement_id} 测试与交付产物",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/delivery_report.md",
+          "requirements/{requirement_id}/test_changes/quality_report.md",
+          "requirements/{requirement_id}/test_changes/test_execution_report.md"
+        ]
+      },
+      {
+        "id": "gate_delivery_final",
+        "label": "交付确认",
+        "task": "请确认 {requirement_id} 交付报告、质量度量、加固建议与测试门禁结果，判定是否可发布",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "测试",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "gate_it_exec", "condition": "always" },
+      { "from": "gate_it_exec", "to": "step_failure_analysis", "condition": "pass" },
+      { "from": "step_failure_analysis", "to": "step_artifact_verify", "condition": "always" },
+      { "from": "step_artifact_verify", "to": "step_quality_metrics", "condition": "pass" },
+      { "from": "step_artifact_verify", "to": "gate_it_exec", "condition": "reject" },
+      { "from": "step_quality_metrics", "to": "step_hardening", "condition": "always" },
+      { "from": "step_hardening", "to": "step_delivery_report", "condition": "always" },
+      { "from": "step_delivery_report", "to": "step_test_gate", "condition": "always" },
+      { "from": "step_test_gate", "to": "gate_delivery_final", "condition": "pass" },
+      { "from": "step_test_gate", "to": "step_quality_metrics", "condition": "reject" },
+      { "from": "gate_delivery_final", "to": "END", "condition": "pass" },
+      { "from": "gate_delivery_final", "to": "step_delivery_report", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:20:00"
+}

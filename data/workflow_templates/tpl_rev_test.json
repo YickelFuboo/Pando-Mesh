@@ -1,0 +1,74 @@
+{
+  "template_id": "tpl_rev_test",
+  "name": "存量逆向·测试覆盖",
+  "description": "业务与架构逆向完成后，从存量测试脚本反向建立覆盖映射（Workspace: skills/rev-* 目录）",
+  "user_goal": "对 {workspace} 存量产品完成测试覆盖逆向与跨视角缓存更新",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_test_coverage_reverse",
+    "nodes": [
+      {
+        "id": "step_test_coverage_reverse",
+        "label": "测试覆盖逆向",
+        "task": "请使用 {workspace}/skills/rev-test-coverage-reverse 这个 skill，从 tests/ 脚本与用例反向关联 features/ 场景与 architectures/ 元素，生成覆盖映射与盲区报告",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "tests/scripts/{*}.py",
+          "tests/test_cases/{*}/TC_{*}.md",
+          "tests/test_strategy.md",
+          "features/{*}/SCENARIO_{*}.md",
+          "architectures/logic_view/elements_tree.yaml"
+        ],
+        "output_doc_paths": [
+          "tests/coverage_mapping.yaml",
+          "tests/coverage_reverse_report.md",
+          ".agent/cross_perspective_cache.yaml"
+        ]
+      },
+      {
+        "id": "step_test_artifact_verify",
+        "label": "测试产物校验",
+        "task": "请使用 {workspace}/skills/qa-artifact-auto-verify 这个 skill，校验 coverage_mapping 与 features/、architectures/ 引用的一致性",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "check",
+        "input_doc_paths": [
+          "tests/coverage_mapping.yaml",
+          "features/feature_root.yaml"
+        ]
+      },
+      {
+        "id": "gate_rev_complete",
+        "label": "存量逆向完成确认",
+        "task": "请确认存量逆向初始化已完成（代码仓/架构/特性/测试四视角产物就绪），可进入正向需求流程 tpl_ir_to_sr",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "逆向",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_test_coverage_reverse", "condition": "always" },
+      { "from": "step_test_coverage_reverse", "to": "step_test_artifact_verify", "condition": "always" },
+      { "from": "step_test_artifact_verify", "to": "gate_rev_complete", "condition": "pass" },
+      { "from": "step_test_artifact_verify", "to": "step_test_coverage_reverse", "condition": "reject" },
+      { "from": "gate_rev_complete", "to": "END", "condition": "pass" },
+      { "from": "gate_rev_complete", "to": "step_test_coverage_reverse", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:30:00"
+}

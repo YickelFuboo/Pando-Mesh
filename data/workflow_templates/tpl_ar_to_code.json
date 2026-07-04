@@ -1,0 +1,124 @@
+{
+  "template_id": "tpl_ar_to_code",
+  "name": "AR→代码实现",
+  "description": "基于实现设计进行变更范围细化、编码实现、合规检查、UT 生成与执行（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成代码变更范围细化、编码实现、单元测试生成与执行验收",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_scope_refine",
+    "nodes": [
+      {
+        "id": "step_scope_refine",
+        "label": "变更范围细化",
+        "task": "请使用 {workspace}/skills/07-fwd-change-scope-refinement 这个 skill，将 {requirement_id} 的实现设计细化为代码仓/文件/函数级变更范围",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
+        ]
+      },
+      {
+        "id": "step_codegen",
+        "label": "编码实现",
+        "task": "请使用 {workspace}/skills/08-fwd-generate-code 这个 skill，按 {requirement_id} 的实现设计文档生成代码变更",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+          "requirements/{requirement_id}/repo_changes/overview.md"
+        ]
+      },
+      {
+        "id": "step_code_qc",
+        "label": "代码合规检查",
+        "task": "请使用 {workspace}/skills/09-fwd-code-compliance-check 这个 skill，检查 {requirement_id} 相关代码变更的合规性",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/overview.md"
+        ]
+      },
+      {
+        "id": "step_ut_generate",
+        "label": "单元测试生成",
+        "task": "请使用 {workspace}/skills/10-fwd-ut-generate 这个 skill，基于 {requirement_id} 的代码变更与实现设计生成单元测试代码，覆盖正常/异常/边界路径",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "requirements/{requirement_id}/test_changes/test_points.md"
+        ]
+      },
+      {
+        "id": "step_ut_execute",
+        "label": "UT 执行与覆盖率",
+        "task": "请使用 {workspace}/skills/11-fwd-ut-execute-coverage 这个 skill，编译并执行 {requirement_id} 相关单元测试，收集覆盖率并输出执行报告",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/overview.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+        ]
+      },
+      {
+        "id": "gate_delivery",
+        "label": "交付确认",
+        "task": "请确认各代码仓变更与 UT 执行结果是否满足 {requirement_id} 验收标准；通过后请切换模板 tpl_build_pack 继续多仓构建打包",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "测试",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_scope_refine", "condition": "always" },
+      { "from": "step_scope_refine", "to": "step_codegen", "condition": "always" },
+      { "from": "step_codegen", "to": "step_code_qc", "condition": "always" },
+      { "from": "step_code_qc", "to": "step_ut_generate", "condition": "pass" },
+      { "from": "step_code_qc", "to": "step_codegen", "condition": "reject" },
+      { "from": "step_ut_generate", "to": "step_ut_execute", "condition": "always" },
+      { "from": "step_ut_execute", "to": "gate_delivery", "condition": "pass" },
+      { "from": "step_ut_execute", "to": "step_ut_generate", "condition": "reject" },
+      { "from": "gate_delivery", "to": "END", "condition": "pass" },
+      { "from": "gate_delivery", "to": "step_codegen", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:00:00"
+}

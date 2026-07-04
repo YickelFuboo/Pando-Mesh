@@ -1,0 +1,97 @@
+{
+  "template_id": "tpl_rev_arch",
+  "name": "存量逆向·架构",
+  "description": "代码仓 .agent 就绪后，逆向抽取架构元素并生成系统级架构设计（Workspace: skills/rev-* 目录）",
+  "user_goal": "对 {workspace} 存量产品完成架构元素抽取与系统架构文档生成",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_arch_element",
+    "nodes": [
+      {
+        "id": "step_arch_element",
+        "label": "架构元素抽取",
+        "task": "请使用 {workspace}/skills/rev-arch-element-extract 这个 skill，基于各代码仓 .agent 文档逆向生成或更新 architectures/logic_view/elements/ 下元素规格、接口与依赖",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "repos/{*}/.agent/spec.md",
+          "repos/{*}/.agent/design.md",
+          "repos/{*}/.agent/interfaces.md",
+          "architectures/logic_view/elements_tree.yaml"
+        ],
+        "output_doc_paths": [
+          "architectures/logic_view/elements_tree.yaml",
+          "architectures/logic_view/elements/{*}/spec.md",
+          "architectures/logic_view/elements/{*}/interfaces.yaml",
+          "architectures/logic_view/elements/{*}/dependencies.yaml"
+        ]
+      },
+      {
+        "id": "step_arch_system",
+        "label": "系统架构逆向",
+        "task": "请使用 {workspace}/skills/rev-arch-system-design 这个 skill，融合元素层产物与 knowledge/历史方案/架构方案/ 生成或更新 architectures/系统架构.md",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "architectures/logic_view/elements_tree.yaml",
+          "architectures/logic_view/elements/{*}/spec.md",
+          "architectures/logic_view/elements/{*}/interfaces.yaml",
+          "architectures/logic_view/elements/{*}/dependencies.yaml"
+        ],
+        "output_doc_paths": [
+          "architectures/系统架构.md",
+          "architectures/decisions/ADR_{*}.md"
+        ]
+      },
+      {
+        "id": "step_arch_gate",
+        "label": "架构阶段门禁",
+        "task": "请使用 {workspace}/skills/qa-stage-gate-check 这个 skill，依据 knowledge/质量门禁/架构阶段门禁.yaml 检查架构逆向产物",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "逆向",
+        "node_role": "check",
+        "input_doc_paths": [
+          "architectures/logic_view/elements_tree.yaml",
+          "architectures/系统架构.md"
+        ]
+      },
+      {
+        "id": "gate_arch_rev_confirm",
+        "label": "架构逆向确认",
+        "task": "请确认 elements_tree、元素规格与系统架构文档是否准确；通过后请切换模板 tpl_rev_features 继续业务场景逆向",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "逆向",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_arch_element", "condition": "always" },
+      { "from": "step_arch_element", "to": "step_arch_system", "condition": "always" },
+      { "from": "step_arch_system", "to": "step_arch_gate", "condition": "always" },
+      { "from": "step_arch_gate", "to": "gate_arch_rev_confirm", "condition": "pass" },
+      { "from": "step_arch_gate", "to": "step_arch_element", "condition": "reject" },
+      { "from": "gate_arch_rev_confirm", "to": "END", "condition": "pass" },
+      { "from": "gate_arch_rev_confirm", "to": "step_arch_element", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:30:00"
+}

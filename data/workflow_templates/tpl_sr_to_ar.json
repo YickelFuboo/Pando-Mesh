@@ -1,15 +1,15 @@
 {
-  "template_id": "tpl_demo_req001",
-  "name": "需求分析",
-  "description": "对原始需求进行  需求澄清-特性影响分析",
-  "user_goal": "对原始需求进行  需求澄清-特性影响分析",
+  "template_id": "tpl_sr_to_ar",
+  "name": "SR 架构分析",
+  "description": "基于 SR 变更说明进行架构影响、接口契约与逻辑流设计（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成架构元素影响分析并生成 AR 与实现设计",
   "judge_mode": "auto",
   "graph": {
     "nodes": [
       {
-        "id": "step_design",
-        "label": "需求分析",
-        "task": "请使用 {workspace}/skills/01-fwd-req-analysis这个skill，对{requirement_id}需求进行分析",
+        "id": "step_arch_impact",
+        "label": "架构影响域分析",
+        "task": "请使用 {workspace}/skills/04-fwd-arch-impact-analysis 这个 skill，基于 {requirement_id} 的 SR 变更说明分析架构元素影响并生成 AR 变更文档",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -51,15 +51,126 @@
         },
         "phase": "设计",
         "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/feature_changes/{*}/{*}.md",
+          "requirements/{requirement_id}/feature_changes/继承性分析报告.md",
+          "architectures/{*}/{*}"
+        ],
         "output_doc_paths": [
-          "{workspace}/requirements/{requirement_id}/需求描述.md",
-          "{workspace}/requirements/{requirement_id}/需求分析.md"
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
         ]
       },
       {
-        "id": "step_design_review",
-        "label": "需求分析质检",
-        "task": "请使用 {workspace}/skills/01-Q-fwd-req-quality-check这个skill，对{requirement_id}需求的分析结果进行检查",
+        "id": "step_interface",
+        "label": "接口契约分析",
+        "task": "请使用 {workspace}/skills/05-fwd-interface-contract-analysis 这个 skill，细化 {requirement_id} 的架构元素接口契约变更",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
+          "requirements/{requirement_id}/interface_contracts/{*}/{*}.md"
+        ]
+      },
+      {
+        "id": "step_logic_design",
+        "label": "业务流设计",
+        "task": "请使用 {workspace}/skills/06-fwd-logic-flow-design 这个 skill，为 {requirement_id} 生成模块级逻辑流与实现设计文档",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
+          "requirements/{requirement_id}/interface_contracts/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
+        ]
+      },
+      {
+        "id": "step_arch_qc",
+        "label": "架构设计质检",
+        "task": "请使用 {workspace}/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 {requirement_id} 的架构与实现设计质量",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -101,158 +212,15 @@
         },
         "phase": "设计",
         "node_role": "check",
-        "output_doc_paths": [
-          "{workspace}/requirements/{requirement_id}/需求质量检查.md"
+        "input_doc_paths": [
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
+          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
         ]
       },
       {
-        "id": "n1",
-        "label": "特性影响分析",
-        "task": "请使用 {workspace}/skills/02-fwd-feature-change-gen这个skill，对{requirement_id}需求进行特性影响分析",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "设计",
-        "node_role": "execute",
-        "output_doc_paths": [
-          "{workspace}/requirements/{requirement_id}/feature_changes/{*}/{*}.md"
-        ]
-      },
-      {
-        "id": "n2",
-        "label": "特性继承性分析",
-        "task": "请使用 {workspace}/skills/03-fwd-inheritance-analysis这个skill，对{requirement_id}需求对特性的进行性进行分析",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "设计",
-        "node_role": "execute",
-        "output_doc_paths": [
-          "{workspace}/requirements/{requirement_id}/feature_changes/继承性分析报告.md"
-        ]
-      },
-      {
-        "id": "n3",
-        "label": "特性分析质检",
-        "task": "请使用 {workspace}/skills/03-Q-fwd-scenario-impact-check这个skill，对{requirement_id}需求的特性分析结果进行检查",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "设计",
-        "node_role": "check"
-      },
-      {
-        "id": "n4",
-        "label": "需求分析检查",
-        "task": "",
+        "id": "gate_ar_confirm",
+        "label": "AR 阶段确认",
+        "task": "请确认 Requirements 树中 AR 与实现设计是否正确；通过后请切换模板 tpl_ar_to_code 继续编码实现",
         "max_iterations": 3,
         "executor": {
           "kind": "human"
@@ -264,53 +232,48 @@
     "edges": [
       {
         "from": "START",
-        "to": "step_design",
+        "to": "step_arch_impact",
         "condition": "always"
       },
       {
-        "from": "step_design",
-        "to": "step_design_review",
+        "from": "step_arch_impact",
+        "to": "step_interface",
         "condition": "always"
       },
       {
-        "from": "step_design_review",
-        "to": "n1",
+        "from": "step_interface",
+        "to": "step_logic_design",
+        "condition": "always"
+      },
+      {
+        "from": "step_logic_design",
+        "to": "step_arch_qc",
+        "condition": "always"
+      },
+      {
+        "from": "step_arch_qc",
+        "to": "gate_ar_confirm",
         "condition": "pass"
       },
       {
-        "from": "step_design_review",
-        "to": "step_design",
+        "from": "step_arch_qc",
+        "to": "step_arch_impact",
         "condition": "reject"
       },
       {
-        "from": "n1",
-        "to": "n2",
-        "condition": "pass"
-      },
-      {
-        "from": "n2",
-        "to": "n3",
-        "condition": "pass"
-      },
-      {
-        "from": "n3",
-        "to": "n4",
-        "condition": "pass"
-      },
-      {
-        "from": "n4",
+        "from": "gate_ar_confirm",
         "to": "END",
-        "condition": "always"
+        "condition": "pass"
       },
       {
-        "from": "n3",
-        "to": "n1",
+        "from": "gate_ar_confirm",
+        "to": "step_arch_impact",
         "condition": "reject"
       }
     ],
-    "entry": "step_design"
+    "entry": "step_arch_impact"
   },
   "source_workflow_id": "",
-  "created_at": "2026-06-27 00:00:00",
-  "updated_at": "2026-06-28 16:15:34"
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 14:43:16"
 }

@@ -1,0 +1,12 @@
+{
+  "agent_id": "third_party_api",
+  "name": "第三方 API Agent",
+  "kind": "api",
+  "description": "通过 ReAct 接入第三方能力；无需 URL/Body，模型在 MaaS 模型设置中配置",
+  "executor_template": {
+    "kind": "react",
+    "agent_type": "ThirdPartyApi"
+  },
+  "enabled": false,
+  "builtin": true
+}

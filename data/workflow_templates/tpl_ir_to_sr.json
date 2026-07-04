@@ -1,0 +1,393 @@
+{
+  "template_id": "tpl_ir_to_sr",
+  "name": "IR需求分析",
+  "description": "需求澄清、特性影响分析、SR 产出与特性索引同步（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成 IR 澄清、需求分析、特性影响分析与 SR 产出",
+  "judge_mode": "auto",
+  "graph": {
+    "nodes": [
+      {
+        "id": "step_req_analysis",
+        "label": "需求澄清与分析",
+        "task": "请使用 {workspace}/skills/01-fwd-req-analysis 这个 skill，阅读 {requirement_id} 的原始需求描述，完成澄清与结构化分析",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求描述.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md"
+        ]
+      },
+      {
+        "id": "step_req_qc",
+        "label": "需求分析质检",
+        "task": "请使用 {workspace}/skills/01-Q-fwd-req-quality-check 这个 skill，对 {requirement_id} 的需求分析结果进行质量检查",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/需求描述.md"
+        ]
+      },
+      {
+        "id": "step_feature_impact",
+        "label": "特性影响分析",
+        "task": "请使用 {workspace}/skills/02-fwd-feature-change-gen 这个 skill，对 {requirement_id} 进行特性影响分析并生成 SR 变更说明",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+        ]
+      },
+      {
+        "id": "step_inheritance",
+        "label": "特性继承性分析",
+        "task": "请使用 {workspace}/skills/03-fwd-inheritance-analysis 这个 skill，分析 {requirement_id} 对存量场景的继承性影响",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/feature_changes/继承性分析报告.md"
+        ]
+      },
+      {
+        "id": "step_scenario_qc",
+        "label": "场景分析质检",
+        "task": "请使用 {workspace}/skills/03-Q-fwd-scenario-impact-check 这个 skill，检查 {requirement_id} 的特性与 SR 分析结果",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/feature_changes/{*}/{*}.md",
+          "requirements/{requirement_id}/feature_changes/继承性分析报告.md"
+        ]
+      },
+      {
+        "id": "step_feature_index",
+        "label": "特性索引同步",
+        "task": "请使用 {workspace}/skills/fwd-feature-index-update 这个 skill，根据 {requirement_id} 的 feature_changes 同步 features 特性索引（含新增/修改/删除场景条目）",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
+        },
+        "phase": "设计",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "features/feature_root.yaml",
+          "features/{*}/{*}_feature.yaml"
+        ]
+      },
+      {
+        "id": "gate_sr_confirm",
+        "label": "SR 阶段确认",
+        "task": "请确认 Requirements 树中 SR 列表与 Features 树场景增删改是否正确；通过后请切换模板 tpl_sr_to_ar 继续架构分析",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "设计",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      {
+        "from": "START",
+        "to": "step_req_analysis",
+        "condition": "always"
+      },
+      {
+        "from": "step_req_analysis",
+        "to": "step_req_qc",
+        "condition": "always"
+      },
+      {
+        "from": "step_req_qc",
+        "to": "step_feature_impact",
+        "condition": "pass"
+      },
+      {
+        "from": "step_req_qc",
+        "to": "step_req_analysis",
+        "condition": "reject"
+      },
+      {
+        "from": "step_feature_impact",
+        "to": "step_inheritance",
+        "condition": "always"
+      },
+      {
+        "from": "step_inheritance",
+        "to": "step_scenario_qc",
+        "condition": "always"
+      },
+      {
+        "from": "step_scenario_qc",
+        "to": "step_feature_index",
+        "condition": "pass"
+      },
+      {
+        "from": "step_scenario_qc",
+        "to": "step_feature_impact",
+        "condition": "reject"
+      },
+      {
+        "from": "step_feature_index",
+        "to": "gate_sr_confirm",
+        "condition": "always"
+      },
+      {
+        "from": "gate_sr_confirm",
+        "to": "END",
+        "condition": "pass"
+      },
+      {
+        "from": "gate_sr_confirm",
+        "to": "step_feature_impact",
+        "condition": "reject"
+      }
+    ],
+    "entry": "step_req_analysis"
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 14:41:54"
+}

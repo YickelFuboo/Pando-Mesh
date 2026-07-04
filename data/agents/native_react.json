@@ -1,0 +1,12 @@
+{
+  "agent_id": "native_react",
+  "name": "自研 ReAct Agent",
+  "kind": "native",
+  "description": "Pando 自研 ReAct 执行器",
+  "executor_template": {
+    "kind": "react",
+    "agent_type": "AiDeveloper"
+  },
+  "enabled": false,
+  "builtin": true
+}

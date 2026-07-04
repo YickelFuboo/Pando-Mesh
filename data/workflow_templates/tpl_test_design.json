@@ -1,0 +1,113 @@
+{
+  "template_id": "tpl_test_design",
+  "name": "测试设计与准备",
+  "description": "版本包就绪后，生成测试用例、选择回归范围、转换脚本并建模测试环境（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成测试用例设计、回归范围选择与自动化脚本准备",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_test_case",
+    "nodes": [
+      {
+        "id": "step_test_case",
+        "label": "测试用例生成",
+        "task": "请使用 {workspace}/skills/14-fwd-test-case-generate 这个 skill，基于 {requirement_id} 的需求分析与测试点生成或更新测试用例",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/需求分析.md",
+          "requirements/{requirement_id}/test_changes/test_points.md",
+          "requirements/{requirement_id}/test_changes/test_scope.md"
+        ],
+        "output_doc_paths": [
+          "tests/test_cases/{*}/TC_{*}.md"
+        ]
+      },
+      {
+        "id": "step_regression_select",
+        "label": "回归测试选择",
+        "task": "请使用 {workspace}/skills/fwd-regression-test-select 这个 skill，基于 {requirement_id} 的继承性与架构影响分析选择回归测试范围",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/feature_changes/继承性分析报告.md",
+          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/regression_test_list.md"
+        ]
+      },
+      {
+        "id": "step_test_script",
+        "label": "测试脚本转换",
+        "task": "请使用 {workspace}/skills/15-fwd-test-script-convert 这个 skill，将 {requirement_id} 相关测试用例转换为可执行自动化脚本",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "tests/test_cases/{*}/TC_{*}.md",
+          "requirements/{requirement_id}/test_changes/regression_test_list.md"
+        ],
+        "output_doc_paths": [
+          "tests/scripts/test_{*}.py"
+        ]
+      },
+      {
+        "id": "step_env_topology",
+        "label": "测试环境拓扑",
+        "task": "请使用 {workspace}/skills/16-fwd-env-topology-modeling 这个 skill，为 {requirement_id} 构建集成测试环境拓扑与部署配置",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "测试",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "architectures/deployment_view/deployment.md",
+          "architectures/deployment_view/environment.md",
+          "requirements/{requirement_id}/repo_changes/version_manifest.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/test_changes/env_topology.yaml"
+        ]
+      },
+      {
+        "id": "gate_test_design_confirm",
+        "label": "测试资产确认",
+        "task": "请确认测试用例、回归清单、自动化脚本与环境拓扑是否就绪；通过后请切换模板 tpl_test_delivery 继续集成测试执行与交付",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "测试",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_test_case", "condition": "always" },
+      { "from": "step_test_case", "to": "step_regression_select", "condition": "always" },
+      { "from": "step_regression_select", "to": "step_test_script", "condition": "always" },
+      { "from": "step_test_script", "to": "step_env_topology", "condition": "always" },
+      { "from": "step_env_topology", "to": "gate_test_design_confirm", "condition": "always" },
+      { "from": "gate_test_design_confirm", "to": "END", "condition": "pass" },
+      { "from": "gate_test_design_confirm", "to": "step_test_case", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:20:00"
+}

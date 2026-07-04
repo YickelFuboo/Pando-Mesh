@@ -1,0 +1,94 @@
+{
+  "template_id": "tpl_build_pack",
+  "name": "多仓构建打包",
+  "description": "各代码仓变更与 UT 通过后，解析多仓编译依赖并执行构建打包（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 完成多仓依赖解析、编译构建与版本打包",
+  "judge_mode": "auto",
+  "graph": {
+    "entry": "step_repo_deps",
+    "nodes": [
+      {
+        "id": "step_repo_deps",
+        "label": "多仓依赖解析",
+        "task": "请使用 {workspace}/skills/12-fwd-multi-repo-dependency 这个 skill，基于 {requirement_id} 的 repo_changes 与架构元素树解析多仓编译依赖并生成编译计划",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "architectures/logic_view/elements_tree.yaml",
+          "architectures/deployment_view/environment.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/build_dependency_plan.md"
+        ]
+      },
+      {
+        "id": "step_version_pack",
+        "label": "版本打包",
+        "task": "请使用 {workspace}/skills/13-fwd-version-packaging 这个 skill，按编译计划对 {requirement_id} 涉及的全部代码仓执行构建并生成版本包",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "execute",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/build_dependency_plan.md",
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+        ],
+        "output_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/build_log.md",
+          "requirements/{requirement_id}/repo_changes/version_manifest.md"
+        ]
+      },
+      {
+        "id": "step_code_gate",
+        "label": "代码阶段门禁",
+        "task": "请使用 {workspace}/skills/qa-stage-gate-check 这个 skill，依据 knowledge/质量门禁/代码阶段门禁.yaml 检查 {requirement_id} 的代码、UT 与构建产物是否满足门禁",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "cli",
+          "registered_agent_id": "claude_code"
+        },
+        "phase": "开发",
+        "node_role": "check",
+        "input_doc_paths": [
+          "requirements/{requirement_id}/repo_changes/overview.md",
+          "requirements/{requirement_id}/repo_changes/build_log.md",
+          "requirements/{requirement_id}/repo_changes/version_manifest.md",
+          "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+        ]
+      },
+      {
+        "id": "gate_build_confirm",
+        "label": "构建确认",
+        "task": "请确认多仓编译日志、版本包清单与代码阶段门禁结果；通过后请切换模板 tpl_test_design 继续测试设计与准备",
+        "max_iterations": 3,
+        "executor": {
+          "kind": "human"
+        },
+        "phase": "测试",
+        "node_role": "execute"
+      }
+    ],
+    "edges": [
+      { "from": "START", "to": "step_repo_deps", "condition": "always" },
+      { "from": "step_repo_deps", "to": "step_version_pack", "condition": "always" },
+      { "from": "step_version_pack", "to": "step_code_gate", "condition": "always" },
+      { "from": "step_code_gate", "to": "gate_build_confirm", "condition": "pass" },
+      { "from": "step_code_gate", "to": "step_version_pack", "condition": "reject" },
+      { "from": "gate_build_confirm", "to": "END", "condition": "pass" },
+      { "from": "gate_build_confirm", "to": "step_version_pack", "condition": "reject" }
+    ]
+  },
+  "source_workflow_id": "",
+  "created_at": "2026-07-04 00:00:00",
+  "updated_at": "2026-07-04 15:10:00"
+}
