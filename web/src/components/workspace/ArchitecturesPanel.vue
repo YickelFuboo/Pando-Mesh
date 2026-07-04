@@ -32,6 +32,7 @@
       />
       <ArchitectureElementPanel
         v-else-if="selectedElementNode"
+        v-model:active-tab="elementViewTab"
         class="architectures-main-pane"
         :workspace-path="workspacePath"
         :element-node="selectedElementNode"
@@ -91,6 +92,7 @@ const loading = ref(false)
 const error = ref('')
 const treeRoot = ref(null)
 const selectedNodeId = ref(ARCH_ROOT_ID)
+const elementViewTab = ref('topology')
 const treePaneWidth = ref(readTreePaneWidth())
 const treePaneResizing = ref(false)
 

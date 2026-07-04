@@ -1,13 +1,13 @@
-const NODE_W = 140
-const MIN_NODE_H = 50
-const H_GAP = 44
-const V_GAP = 12
+const NODE_W = 128
+const MIN_NODE_H = 44
+const H_GAP = 40
+const V_GAP = 10
 const PAD = 20
-const TOP_PAD = 7
-const HEADER_H = 14
-const TITLE_LH = 11
-const STATUS_H = 12
-const BOTTOM_PAD = 5
+const TOP_PAD = 6
+const HEADER_H = 11
+const TITLE_LH = 9
+const STATUS_H = 10
+const BOTTOM_PAD = 4
 
 function wrapText(text, maxChars) {
   const raw = String(text || '').trim()
@@ -27,7 +27,7 @@ function measureNode(node) {
   const idLine = node.level && node.level !== 'root' && node.level !== 'scenario'
     ? node.level
     : (node.node_type === 'scenario' ? 'SCN' : 'ROOT')
-  const titleLines = wrapText(node.name || node.id, 11)
+  const titleLines = wrapText(node.name || node.id, 13)
   const h = TOP_PAD + HEADER_H + titleLines.length * TITLE_LH + STATUS_H + BOTTOM_PAD
   return { idLine, titleLines, h: Math.max(MIN_NODE_H, h) }
 }
@@ -152,6 +152,124 @@ function layoutSubtree(root) {
 
 export function buildFeatureTreeLayout(rootNode) {
   return layoutSubtree(rootNode)
+}
+
+function measureArchNode(element) {
+  const idLine = String(element.element_id || '').toUpperCase() || 'NF'
+  const titleLines = wrapText(element.name || element.element_id, 13)
+  const h = TOP_PAD + HEADER_H + titleLines.length * TITLE_LH + STATUS_H + BOTTOM_PAD
+  return { idLine, titleLines, h: Math.max(MIN_NODE_H, h) }
+}
+
+function collectFeatureArchLinks(rootNode) {
+  const featureArchLinks = []
+  const archElements = new Map()
+
+  function walk(node) {
+    if (node?.node_type === 'feature') {
+      for (const ref of node.architecture_refs || []) {
+        const elementId = String(ref?.element_id || '').trim()
+        if (!elementId) continue
+        if (!archElements.has(elementId)) {
+          archElements.set(elementId, {
+            element_id: elementId,
+            name: ref.name || elementId.toUpperCase(),
+            path: ref.path || '',
+            role: ref.role || '',
+          })
+        }
+        featureArchLinks.push({ from: node.id, to: elementId, kind: 'arch' })
+      }
+    }
+    for (const child of node.children || []) walk(child)
+  }
+  walk(rootNode)
+  return { featureArchLinks, archElements }
+}
+
+export function buildFeatureTopologyLayout(rootNode, archNameMap = {}) {
+  const base = buildFeatureTreeLayout(rootNode)
+  const { featureArchLinks, archElements } = collectFeatureArchLinks(rootNode)
+  if (!archElements.size) return base
+
+  for (const [elementId, element] of archElements) {
+    const mappedName = archNameMap[elementId]
+    if (mappedName) element.name = mappedName
+  }
+
+  const nodeById = Object.fromEntries(base.nodes.map((node) => [node.id, node]))
+  const maxDepth = Math.max(
+    0,
+    ...base.nodes.map((node) => Math.round((node.x - PAD) / (NODE_W + H_GAP))),
+  )
+  const archColX = PAD + (maxDepth + 1) * (NODE_W + H_GAP)
+
+  const archNodesToPlace = [...archElements.entries()].map(([elementId, element]) => {
+    const sources = featureArchLinks
+      .filter((link) => link.to === elementId)
+      .map((link) => nodeById[link.from])
+      .filter(Boolean)
+    const centerY = sources.length
+      ? sources.reduce((sum, node) => sum + node.y + node.h / 2, 0) / sources.length
+      : PAD + MIN_NODE_H / 2
+    return { elementId, element, centerY }
+  })
+  archNodesToPlace.sort((a, b) => a.centerY - b.centerY)
+
+  const archLayoutNodes = []
+  let nextArchY = PAD
+  for (const item of archNodesToPlace) {
+    const meta = measureArchNode(item.element)
+    const y = Math.max(item.centerY - meta.h / 2, nextArchY)
+    const layoutId = `arch::${item.elementId}`
+    archLayoutNodes.push({
+      id: layoutId,
+      x: archColX,
+      y,
+      w: NODE_W,
+      h: meta.h,
+      cx: archColX + NODE_W / 2,
+      idLine: meta.idLine,
+      titleLines: meta.titleLines,
+      status: item.element.role || 'element',
+      nodeType: 'element',
+      elementId: item.elementId,
+      description: item.element.path,
+      level: 'NF',
+    })
+    nextArchY = y + meta.h + V_GAP
+    nodeById[layoutId] = archLayoutNodes[archLayoutNodes.length - 1]
+  }
+
+  const archEdges = featureArchLinks.map((link) => {
+    const from = nodeById[link.from]
+    const to = nodeById[`arch::${link.to}`]
+    if (!from || !to) return null
+    const x1 = from.x + from.w
+    const y1 = from.y + from.h / 2
+    const x2 = to.x
+    const y2 = to.y + to.h / 2
+    const mx = (x1 + x2) / 2
+    return {
+      ...link,
+      path: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`,
+    }
+  }).filter(Boolean)
+
+  const allNodes = [...base.nodes, ...archLayoutNodes]
+  const width = Math.max(
+    base.width,
+    archColX + NODE_W + PAD,
+  )
+  const maxNodeBottom = Math.max(...allNodes.map((node) => node.y + node.h))
+  const height = Math.max(base.height, maxNodeBottom + PAD)
+
+  return {
+    width: Math.max(width, 480),
+    height: Math.max(height, 240),
+    nodes: allNodes,
+    edges: [...base.edges, ...archEdges],
+  }
 }
 
 export const FEATURE_LAYOUT = {

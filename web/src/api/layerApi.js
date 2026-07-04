@@ -38,6 +38,11 @@ export function listArchitecturesTree(workspacePath) {
   return request(`/workflows/meta/architectures/tree?${qs.toString()}`)
 }
 
+export function getArchitectureElementInterfaces(workspacePath, specPath) {
+  const qs = new URLSearchParams({ workspace_path: workspacePath, spec_path: specPath })
+  return request(`/workflows/meta/architectures/element-interfaces?${qs.toString()}`)
+}
+
 export function getMetaWorkspaceFile(workspacePath, path) {
   const qs = new URLSearchParams({ workspace_path: workspacePath, path })
   return request(`/workflows/meta/workspace-file?${qs.toString()}`)

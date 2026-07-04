@@ -9,10 +9,10 @@
         :style="{ width: `${treePaneWidth}px` }"
         :tree-root="treeRoot"
         :selected-node-id="treeSelectedId"
-        :loading="loading"
+        :loading="treeLoading"
         :error="error"
         @select-node="selectedNodeId = $event"
-        @refresh="loadFeatures"
+        @refresh="loadFeatures(true)"
       />
       <div
         class="features-tree-resize-handle"
@@ -29,15 +29,20 @@
         :scenario-node="selectedScenarioNode"
         :parent-node-id="scenarioParentId"
         @show-parent="selectedNodeId = $event"
+        @reset-root="resetTopologyView"
       />
       <FeatureDetailPanel
-        v-else-if="selectedFeatureLeafNode"
+        v-else-if="selectedFeatureNode"
+        v-model:active-tab="featureDetailViewTab"
         class="features-topology-pane"
         :workspace-path="workspacePath"
-        :feature-node="selectedFeatureLeafNode"
+        :feature-node="selectedFeatureNode"
+        :summary-only="featureSummaryOnly"
         :selected-node-id="selectedNodeId"
-        :loading="loading"
+        :loading="treeLoading"
+        :topology-busy="topologyBusy"
         :error="error"
+        :arch-name-map="archNameMap"
         @select-node="onTopologySelectNode"
         @reset-root="resetTopologyView"
       />
@@ -47,8 +52,10 @@
         :root-node="topologyRoot"
         :selected-node-id="selectedNodeId"
         :is-full-view="isFullTopology"
-        :loading="loading"
+        :loading="treeLoading"
+        :topology-busy="topologyBusy"
         :error="error"
+        :arch-name-map="archNameMap"
         @select-node="onTopologySelectNode"
         @reset-root="resetTopologyView"
       />
@@ -57,18 +64,21 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'FeaturesPanel' })
+
 import { computed, ref, watch } from 'vue'
 import FeatureTreeSidebar from '../features/FeatureTreeSidebar.vue'
 import FeatureTopologyCanvas from '../features/FeatureTopologyCanvas.vue'
 import FeatureScenarioDocPanel from '../features/FeatureScenarioDocPanel.vue'
 import FeatureDetailPanel from '../features/FeatureDetailPanel.vue'
-import { listFeatures } from '../../api/layerApi.js'
+import { listFeatures, listArchitecturesTree } from '../../api/layerApi.js'
 import {
   cloneSubtree,
   findNodeById,
   findParentNode,
-  isFeatureLeafNode,
+  isFeatureBranchNode,
 } from '../../utils/featureTreeModel.js'
+import { flattenElements, normalizeElementRow } from '../../utils/architectureTreeModel.js'
 
 const TREE_PANE_WIDTH_KEY = 'pando_mesh_features_tree_width'
 const TREE_PANE_MIN_W = 220
@@ -87,12 +97,16 @@ const props = defineProps({
   workspacePath: { type: String, default: '' },
 })
 
-const loading = ref(false)
+const treeLoading = ref(false)
+const topologyBusy = ref(false)
 const error = ref('')
 const treeRoot = ref(null)
+const loadedWorkspace = ref('')
 const selectedNodeId = ref(FEATURE_ROOT_ID)
+const featureDetailViewTab = ref('topology')
 const treePaneWidth = ref(readTreePaneWidth())
 const treePaneResizing = ref(false)
+const archNameMap = ref({})
 
 const treeSelectedId = computed(() => (
   selectedNodeId.value === FEATURE_ROOT_ID ? '' : selectedNodeId.value
@@ -110,11 +124,13 @@ const selectedScenarioNode = computed(() => {
   return node?.node_type === 'scenario' ? node : null
 })
 
-const selectedFeatureLeafNode = computed(() => {
+const selectedFeatureNode = computed(() => {
   const node = selectedNode.value
   if (!node || node.node_type !== 'feature') return null
-  return isFeatureLeafNode(node) ? node : null
+  return node
 })
+
+const featureSummaryOnly = computed(() => isFeatureBranchNode(selectedFeatureNode.value))
 
 const scenarioParentId = computed(() => {
   if (!treeRoot.value || !selectedScenarioNode.value) return ''
@@ -162,26 +178,58 @@ function startResizeTreePane(e) {
   document.addEventListener('mouseup', onUp)
 }
 
-async function loadFeatures() {
+async function loadFeatures(force = false) {
   const ws = props.workspacePath.trim()
   error.value = ''
-  treeRoot.value = null
-  if (!ws) return
-  loading.value = true
+  if (!ws) {
+    treeRoot.value = null
+    loadedWorkspace.value = ''
+    archNameMap.value = {}
+    return
+  }
+  if (!force && treeRoot.value && loadedWorkspace.value === ws) return
+  treeLoading.value = true
+  topologyBusy.value = false
+  if (force || loadedWorkspace.value !== ws) {
+    treeRoot.value = null
+  }
   try {
-    const payload = await listFeatures(ws)
+    const [payload, archPayload] = await Promise.all([
+      listFeatures(ws),
+      listArchitecturesTree(ws).catch(() => null),
+    ])
     treeRoot.value = payload.root || null
+    loadedWorkspace.value = ws
     selectedNodeId.value = FEATURE_ROOT_ID
+    const map = {}
+    if (archPayload?.root) {
+      for (const el of flattenElements(archPayload.root)) {
+        const row = normalizeElementRow(el)
+        map[row.element_id] = row.name
+      }
+    }
+    archNameMap.value = map
+    if (treeRoot.value) {
+      topologyBusy.value = true
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          topologyBusy.value = false
+        })
+      })
+    }
   } catch (e) {
     error.value = e?.message || '加载特性库失败'
+    treeRoot.value = null
+    loadedWorkspace.value = ''
+    archNameMap.value = {}
   } finally {
-    loading.value = false
+    treeLoading.value = false
   }
 }
 
 watch(
   () => props.workspacePath,
-  () => loadFeatures(),
+  () => loadFeatures(true),
   { immediate: true },
 )
 </script>
@@ -229,6 +277,9 @@ watch(
 .features-topology-pane {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .features-empty-banner {
   margin: auto;

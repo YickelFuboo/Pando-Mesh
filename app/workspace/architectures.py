@@ -98,12 +98,25 @@ def _view_node(view_dir: Path, arch_root: Path) -> Optional[Dict[str, Any]]:
     }
 
 
+SYSTEM_ARCH_DOC_NAMES = (
+    "系统架构.md",
+    "system_architectures.md",
+)
+
+
+def _resolve_system_arch_doc(root_dir: Path) -> str:
+    for name in SYSTEM_ARCH_DOC_NAMES:
+        if (root_dir / name).is_file():
+            return f"architectures/{name}"
+    return ""
+
+
 def load_architectures_tree(workspace_path: str) -> Dict[str, Any]:
     root_dir = architectures_root(workspace_path)
     children: List[Dict[str, Any]] = []
 
-    system_doc_path = "architectures/system_architectures.md"
-    has_system_doc = (root_dir / "system_architectures.md").is_file()
+    system_doc_path = _resolve_system_arch_doc(root_dir)
+    has_system_doc = bool(system_doc_path)
 
     for entry in sorted(root_dir.iterdir(), key=lambda p: p.name.lower()):
         if not entry.is_dir():
@@ -125,4 +138,66 @@ def load_architectures_tree(workspace_path: str) -> Dict[str, Any]:
             "children": children,
         },
         "architectures_path": str(root_dir),
+    }
+
+
+def _element_dir_from_spec_path(spec_path: str) -> str:
+    rel = str(spec_path or "").strip().replace("\\", "/")
+    if not rel:
+        return ""
+    if rel.endswith("/"):
+        return rel.rstrip("/")
+    parent = Path(rel).parent.as_posix()
+    return parent if parent and parent != "." else rel
+
+
+def _normalize_interface_rows(items: Any) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        row = {str(k): v for k, v in item.items() if v is not None and v != ""}
+        if row:
+            rows.append(row)
+    return rows
+
+
+def load_element_interfaces(workspace_path: str, spec_path: str) -> Dict[str, Any]:
+    root_dir = architectures_root(workspace_path)
+    element_dir_rel = _element_dir_from_spec_path(spec_path)
+    if not element_dir_rel:
+        raise ValueError("spec_path 无效")
+    element_dir = (root_dir.parent / element_dir_rel).resolve()
+    root_resolved = str(root_dir.parent.resolve())
+    if not str(element_dir).startswith(root_resolved):
+        raise ValueError("元素路径超出 workspace 范围")
+
+    interfaces_path = element_dir / "interfaces.yaml"
+    dependencies_path = element_dir / "dependencies.yaml"
+    interfaces_data = _load_yaml(interfaces_path) if interfaces_path.is_file() else {}
+    dependencies_data = _load_yaml(dependencies_path) if dependencies_path.is_file() else {}
+
+    summary = dependencies_data.get("summary") if isinstance(dependencies_data.get("summary"), dict) else {}
+    return {
+        "element_id": str(
+            interfaces_data.get("element_id")
+            or dependencies_data.get("element_id")
+            or element_dir.name
+        ).strip(),
+        "element_name": str(
+            interfaces_data.get("element_name")
+            or dependencies_data.get("element_name")
+            or element_dir.name
+        ).strip(),
+        "interfaces_path": f"{element_dir_rel}/interfaces.yaml" if interfaces_path.is_file() else "",
+        "dependencies_path": f"{element_dir_rel}/dependencies.yaml" if dependencies_path.is_file() else "",
+        "provided_interfaces": _normalize_interface_rows(interfaces_data.get("provided_interfaces")),
+        "system_internal_dependencies": _normalize_interface_rows(
+            dependencies_data.get("system_internal_dependencies")
+        ),
+        "external_dependencies": _normalize_interface_rows(
+            dependencies_data.get("external_dependencies")
+        ),
+        "summary": summary,
+        "full_contract_index": str(interfaces_data.get("full_contract_index") or "").strip(),
     }

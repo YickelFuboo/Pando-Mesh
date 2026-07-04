@@ -1,8 +1,15 @@
-const NODE_W = 108
-const NODE_H = 40
+const NODE_W = 144
+const MIN_NODE_H = 50
 const H_GAP = 40
-const V_GAP = 10
+const V_GAP = 12
 const PAD = 20
+const TOP_PAD = 6
+const HEADER_H = 14
+const TITLE_BASELINE = 10
+const TITLE_LH = 13
+const STATUS_GAP = 6
+const STATUS_H = 10
+const BOTTOM_PAD = 5
 const COLUMN_BY_TYPE = {
   requirement: 0,
   scenario: 1,
@@ -15,7 +22,27 @@ function wrapText(text, maxChars) {
   const raw = String(text || '').trim()
   if (!raw) return ['']
   if (raw.length <= maxChars) return [raw]
-  return [raw.slice(0, maxChars), raw.length > maxChars * 2 ? `${raw.slice(maxChars, maxChars * 2 - 1)}…` : raw.slice(maxChars)]
+  const lines = []
+  let rest = raw
+  while (rest.length > maxChars && lines.length < 2) {
+    lines.push(rest.slice(0, maxChars))
+    rest = rest.slice(maxChars)
+  }
+  if (rest) lines.push(rest.length > maxChars ? `${rest.slice(0, maxChars - 1)}…` : rest)
+  return lines.slice(0, 2)
+}
+
+function measureTitleBlock(titleLines) {
+  if (!titleLines.length) return 0
+  return TITLE_BASELINE + Math.max(0, titleLines.length - 1) * TITLE_LH
+}
+
+function measureNode(node) {
+  const idLine = node.level || node.node_type?.toUpperCase() || ''
+  const titleLines = wrapText(node.name || node.id, 14)
+  const titleBlock = measureTitleBlock(titleLines)
+  const h = TOP_PAD + HEADER_H + titleBlock + STATUS_GAP + STATUS_H + BOTTOM_PAD
+  return { idLine, titleLines, h: Math.max(MIN_NODE_H, h) }
 }
 
 export function buildRequirementGraphLayout(rootNode) {
@@ -28,6 +55,10 @@ export function buildRequirementGraphLayout(rootNode) {
   const linkEdges = []
 
   function walk(node, parentId) {
+    if (node.node_type === 'root') {
+      for (const child of node.children || []) walk(child, null)
+      return
+    }
     flatNodes.push(node)
     if (parentId) treeEdges.push({ from: parentId, to: node.id, kind: 'tree' })
     for (const child of node.children || []) walk(child, node.id)
@@ -47,32 +78,36 @@ export function buildRequirementGraphLayout(rootNode) {
     byColumn.get(col).push(node)
   }
 
-  const layoutNodes = []
-  let maxRows = 1
-  for (const [, colNodes] of byColumn.entries()) {
-    maxRows = Math.max(maxRows, colNodes.length)
+  const columnHeights = []
+  for (const colNodes of byColumn.values()) {
+    const colH = colNodes.reduce((sum, node) => sum + measureNode(node).h, 0)
+      + Math.max(0, colNodes.length - 1) * V_GAP
+    columnHeights.push(colH)
   }
+  const maxColH = Math.max(MIN_NODE_H, ...columnHeights, 0)
 
+  const layoutNodes = []
   for (const [col, colNodes] of byColumn.entries()) {
-    const colH = colNodes.length * NODE_H + Math.max(0, colNodes.length - 1) * V_GAP
-    const startY = PAD + Math.max(0, (maxRows * (NODE_H + V_GAP) - V_GAP - colH) / 2)
-    colNodes.forEach((node, index) => {
+    const measuredCol = colNodes.map((node) => ({ node, meta: measureNode(node) }))
+    const colH = measuredCol.reduce((sum, item) => sum + item.meta.h, 0)
+      + Math.max(0, measuredCol.length - 1) * V_GAP
+    let y = PAD + Math.max(0, (maxColH - colH) / 2)
+    measuredCol.forEach(({ node, meta }) => {
       const x = PAD + col * (NODE_W + H_GAP)
-      const y = startY + index * (NODE_H + V_GAP)
-      const idLine = node.level || node.node_type?.toUpperCase() || ''
       layoutNodes.push({
         id: node.id,
         x,
         y,
         w: NODE_W,
-        h: NODE_H,
+        h: meta.h,
         cx: x + NODE_W / 2,
-        idLine,
-        titleLines: wrapText(node.name || node.id, 10),
+        idLine: meta.idLine,
+        titleLines: meta.titleLines,
         status: node.status,
         nodeType: node.node_type,
         description: node.description,
       })
+      y += meta.h + V_GAP
     })
   }
 
@@ -99,9 +134,21 @@ export function buildRequirementGraphLayout(rootNode) {
   const maxCol = Math.max(0, ...layoutNodes.map((n) => n.x))
   const maxRow = Math.max(0, ...layoutNodes.map((n) => n.y + n.h))
   return {
-    width: Math.max(maxCol + NODE_W + PAD, 520),
-    height: Math.max(maxRow + PAD, 240),
+    width: Math.max(maxCol + NODE_W + PAD, 560),
+    height: Math.max(maxRow + PAD, 260),
     nodes: layoutNodes,
     edges: layoutEdges,
   }
+}
+
+export const REQUIREMENT_LAYOUT = {
+  NODE_W,
+  MIN_NODE_H,
+  TOP_PAD,
+  HEADER_H,
+  TITLE_BASELINE,
+  TITLE_LH,
+  STATUS_GAP,
+  STATUS_H,
+  BOTTOM_PAD,
 }

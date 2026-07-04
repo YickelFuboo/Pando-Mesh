@@ -6,26 +6,41 @@
         <h2>{{ title }}</h2>
       </div>
     </header>
+    <TreeNodeInfoBar
+      :node="docNode"
+      :meta="fileMeta"
+      collapsible
+    />
     <div class="adp-body">
+      <DocFileTabs
+        v-if="docTabItems.length"
+        model-value="doc"
+        accent="architecture"
+        :items="docTabItems"
+      />
       <div v-if="loading" class="adp-state">加载文档…</div>
       <div v-else-if="error" class="adp-state error">{{ error }}</div>
       <div v-else-if="!fileContent.trim()" class="adp-state">文档暂无内容</div>
-      <div v-else class="adp-markdown-wrap">
-        <MarkdownWithMeta
-          :content="fileContent"
-          :meta="fileMeta"
-          :file-path="resolvedPath"
-        />
-      </div>
+      <template v-else>
+        <div class="adp-markdown-wrap">
+          <MarkdownWithMeta
+            :content="fileContent"
+            :meta="fileMeta"
+          />
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import MarkdownWithMeta from '../common/MarkdownWithMeta.vue'
+import TreeNodeInfoBar from '../common/TreeNodeInfoBar.vue'
+import DocFileTabs from '../common/DocFileTabs.vue'
 import { getMetaWorkspaceFile } from '../../api/layerApi.js'
 import { elementWorkspaceFilePath } from '../../utils/architectureTreeModel.js'
+import { workspaceFileDisplayPath, workspacePathBasename } from '../../utils/workspacePath.js'
 
 const props = defineProps({
   workspacePath: { type: String, default: '' },
@@ -41,6 +56,21 @@ const fileContent = ref('')
 const fileMeta = ref({})
 const resolvedPath = ref('')
 
+const docWorkspacePath = computed(() => {
+  const node = props.docNode
+  return props.filePath || elementWorkspaceFilePath(node) || String(node?.path || '').trim()
+})
+
+const docTabItems = computed(() => {
+  const path = docWorkspacePath.value
+  if (!path) return []
+  return [{
+    id: 'doc',
+    label: workspacePathBasename(path),
+    title: resolvedPath.value || path,
+  }]
+})
+
 async function loadDoc() {
   const ws = props.workspacePath.trim()
   const node = props.docNode
@@ -49,7 +79,7 @@ async function loadDoc() {
   fileMeta.value = {}
   resolvedPath.value = ''
   if (!ws || (!node && !props.filePath)) return
-  const filePath = props.filePath || elementWorkspaceFilePath(node) || String(node?.path || '').trim()
+  const filePath = docWorkspacePath.value
   if (!filePath) {
     error.value = '未配置文档路径'
     return
@@ -59,7 +89,7 @@ async function loadDoc() {
     const data = await getMetaWorkspaceFile(ws, filePath)
     fileContent.value = data?.content || ''
     fileMeta.value = data?.meta || {}
-    resolvedPath.value = data?.resolved_path || filePath
+    resolvedPath.value = workspaceFileDisplayPath(data, filePath)
   } catch (e) {
     error.value = e?.message || '加载文档失败'
   } finally {
@@ -116,12 +146,16 @@ watch(
 .adp-body {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  padding: 16px 20px 24px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .adp-markdown-wrap {
-  max-width: 920px;
-  margin: 0 auto;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 .adp-state {
   display: flex;

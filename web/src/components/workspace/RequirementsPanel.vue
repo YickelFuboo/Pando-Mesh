@@ -13,8 +13,22 @@
         @select-node="selectedNodeId = $event"
         @refresh="loadRequirements"
       />
+      <RequirementDetailPanel
+        v-if="selectedDetailNode"
+        v-model:active-tab="detailViewTab"
+        class="requirements-main-pane"
+        :workspace-path="workspacePath"
+        :detail-node="selectedDetailNode"
+        :tree-root="treeRoot"
+        :selected-node-id="selectedNodeId"
+        :loading="loading"
+        :error="error"
+        @select-node="selectedNodeId = $event"
+        @reset-root="resetTopologyView"
+      />
       <RequirementTopologyCanvas
-        class="requirements-topology-pane"
+        v-else
+        class="requirements-main-pane"
         :root-node="topologyRoot"
         :selected-node-id="selectedNodeId"
         :loading="loading"
@@ -29,8 +43,13 @@
 import { computed, ref, watch } from 'vue'
 import RequirementTreeSidebar from '../requirements/RequirementTreeSidebar.vue'
 import RequirementTopologyCanvas from '../requirements/RequirementTopologyCanvas.vue'
+import RequirementDetailPanel from '../requirements/RequirementDetailPanel.vue'
 import { listRequirementsTree } from '../../api/layerApi.js'
-import { cloneSubtree, findNodeById } from '../../utils/requirementGraphModel.js'
+import {
+  cloneSubtree,
+  findNodeById,
+  isRequirementDocNode,
+} from '../../utils/requirementGraphModel.js'
 
 const props = defineProps({
   workspacePath: { type: String, default: '' },
@@ -42,18 +61,30 @@ const loading = ref(false)
 const error = ref('')
 const treeRoot = ref(null)
 const selectedNodeId = ref(REQUIREMENTS_ROOT_ID)
+const detailViewTab = ref('topology')
 
 const treeSelectedId = computed(() => (
   selectedNodeId.value === REQUIREMENTS_ROOT_ID ? '' : selectedNodeId.value
 ))
 
+const selectedNode = computed(() => {
+  if (!treeRoot.value || selectedNodeId.value === REQUIREMENTS_ROOT_ID) return null
+  return findNodeById(treeRoot.value, selectedNodeId.value)
+})
+
+const selectedDetailNode = computed(() => {
+  const node = selectedNode.value
+  return isRequirementDocNode(node) ? node : null
+})
+
 const topologyRoot = computed(() => {
   if (!treeRoot.value) return null
-  const node = findNodeById(treeRoot.value, selectedNodeId.value)
-  if (!node) return cloneSubtree(treeRoot.value)
-  if (node.node_type === 'root') return cloneSubtree(node)
-  return cloneSubtree(node)
+  return cloneSubtree(treeRoot.value)
 })
+
+function resetTopologyView() {
+  selectedNodeId.value = REQUIREMENTS_ROOT_ID
+}
 
 async function loadRequirements() {
   const ws = props.workspacePath.trim()
@@ -90,9 +121,12 @@ watch(
   width: 300px;
   flex-shrink: 0;
 }
-.requirements-topology-pane {
+.requirements-main-pane {
   flex: 1;
   min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .requirements-empty-banner {
   margin: auto;

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
 from app.workspace.paths import normalize_workspace_path
+
+_YAML_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+_TREE_CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
 
 def features_root(workspace_path: str) -> Path:
@@ -21,11 +24,22 @@ def features_root(workspace_path: str) -> Path:
 def _load_yaml(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         return {}
+    cache_key = str(path.resolve())
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return {}
+    cached = _YAML_CACHE.get(cache_key)
+    if cached and cached[0] == mtime:
+        return cached[1]
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
-        return {}
-    return raw if isinstance(raw, dict) else {}
+        data: Dict[str, Any] = {}
+    else:
+        data = raw if isinstance(raw, dict) else {}
+    _YAML_CACHE[cache_key] = (mtime, data)
+    return data
 
 
 def _status_from(*sources: Any) -> str:
@@ -85,7 +99,57 @@ def _scenario_nodes(feature_id: str, scenarios: List[Any], rel_prefix: str) -> L
     return rows
 
 
-def _build_from_yaml(yaml_path: Path, features_root_path: Path) -> Optional[Dict[str, Any]]:
+def _normalize_arch_ref_item(item: Any) -> Optional[Dict[str, str]]:
+    if not isinstance(item, dict):
+        return None
+    element_id = str(item.get("element_id") or "").strip()
+    if not element_id:
+        return None
+    path = str(item.get("path") or item.get("spec_path") or "").strip().replace("\\", "/")
+    name = str(item.get("name") or item.get("element_name") or element_id).strip()
+    role = str(item.get("role") or "").strip()
+    row: Dict[str, str] = {
+        "element_id": element_id,
+        "path": path,
+        "name": name,
+    }
+    if role:
+        row["role"] = role
+    return row
+
+
+def _architecture_refs(
+    data: Dict[str, Any],
+    yaml_dir: Path,
+    feature: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    merged: Dict[str, Dict[str, str]] = {}
+    trace = data.get("traceability") if isinstance(data.get("traceability"), dict) else {}
+    for item in trace.get("architecture_refs") or []:
+        row = _normalize_arch_ref_item(item)
+        if row:
+            merged[row["element_id"]] = row
+
+    arch_ref_name = str(feature.get("arch_ref_path") or "arch_ref.yaml").strip()
+    if arch_ref_name:
+        arch_ref_file = yaml_dir / arch_ref_name
+        arch_data = _load_yaml(arch_ref_file) if arch_ref_file.is_file() else {}
+        for item in arch_data.get("elements_used") or []:
+            row = _normalize_arch_ref_item(item)
+            if not row:
+                continue
+            existing = merged.get(row["element_id"], {})
+            merged[row["element_id"]] = {**existing, **{k: v for k, v in row.items() if v}}
+
+    return list(merged.values())
+
+
+def _build_from_yaml(
+    yaml_path: Path,
+    features_root_path: Path,
+    *,
+    root_resolved: str,
+) -> Optional[Dict[str, Any]]:
     data = _load_yaml(yaml_path)
     if not data:
         return None
@@ -106,9 +170,13 @@ def _build_from_yaml(yaml_path: Path, features_root_path: Path) -> Optional[Dict
         if not child_rel:
             continue
         child_path = (parent_dir / child_rel).resolve()
-        if not str(child_path).startswith(str(features_root_path.resolve())):
+        if not str(child_path).startswith(root_resolved):
             continue
-        child_node = _build_from_yaml(child_path, features_root_path)
+        child_node = _build_from_yaml(
+            child_path,
+            features_root_path,
+            root_resolved=root_resolved,
+        )
         if child_node is not None:
             children.append(child_node)
         else:
@@ -120,13 +188,23 @@ def _build_from_yaml(yaml_path: Path, features_root_path: Path) -> Optional[Dict
                 }
             )
 
-    scenarios = _scenario_nodes(meta["id"], data.get("scenarios") or [], str(yaml_path.parent.relative_to(features_root_path)).replace("\\", "/"))
+    rel_prefix = str(yaml_path.parent.relative_to(features_root_path)).replace("\\", "/")
+    scenarios = _scenario_nodes(meta["id"], data.get("scenarios") or [], rel_prefix)
     children.extend(scenarios)
+    meta["architecture_refs"] = _architecture_refs(data, parent_dir, feature)
     meta["children"] = children
     return meta
 
 
-def load_features_tree(workspace_path: str) -> Dict[str, Any]:
+def _tree_cache_stamp(root_dir: Path) -> float:
+    index_path = root_dir / "feature_root.yaml"
+    try:
+        return index_path.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _load_features_tree_uncached(workspace_path: str) -> Dict[str, Any]:
     root_dir = features_root(workspace_path)
     index_path = root_dir / "feature_root.yaml"
     if not index_path.is_file():
@@ -135,6 +213,7 @@ def load_features_tree(workspace_path: str) -> Dict[str, Any]:
     index = _load_yaml(index_path)
     meta = index.get("meta") if isinstance(index.get("meta"), dict) else {}
     stats = meta.get("stats") if isinstance(meta.get("stats"), dict) else {}
+    root_resolved = str(root_dir.resolve())
 
     children: List[Dict[str, Any]] = []
     for entry in index.get("child_features") or []:
@@ -144,9 +223,13 @@ def load_features_tree(workspace_path: str) -> Dict[str, Any]:
         if not child_rel:
             continue
         child_path = (root_dir / child_rel).resolve()
-        if not str(child_path).startswith(str(root_dir.resolve())):
+        if not str(child_path).startswith(root_resolved):
             continue
-        child_node = _build_from_yaml(child_path, root_dir)
+        child_node = _build_from_yaml(
+            child_path,
+            root_dir,
+            root_resolved=root_resolved,
+        )
         if child_node is not None:
             children.append(child_node)
         else:
@@ -172,3 +255,33 @@ def load_features_tree(workspace_path: str) -> Dict[str, Any]:
         "stats": stats,
         "features_path": str(root_dir),
     }
+
+
+def load_features_tree(workspace_path: str) -> Dict[str, Any]:
+    root_dir = features_root(workspace_path)
+    cache_key = str(root_dir.resolve())
+    stamp = _tree_cache_stamp(root_dir)
+    cached = _TREE_CACHE.get(cache_key)
+    if cached and cached[0] == stamp:
+        return cached[1]
+    payload = _load_features_tree_uncached(workspace_path)
+    _TREE_CACHE[cache_key] = (stamp, payload)
+    return payload
+
+
+def clear_features_tree_cache(workspace_path: str = "") -> None:
+    if not workspace_path.strip():
+        _TREE_CACHE.clear()
+        _YAML_CACHE.clear()
+        return
+    try:
+        root_dir = features_root(workspace_path)
+    except (ValueError, FileNotFoundError):
+        return
+    cache_key = str(root_dir.resolve())
+    _TREE_CACHE.pop(cache_key, None)
+    prefix = cache_key + "\\"
+    prefix_posix = cache_key + "/"
+    for key in list(_YAML_CACHE):
+        if key.startswith(prefix) or key.startswith(prefix_posix):
+            _YAML_CACHE.pop(key, None)

@@ -57,6 +57,11 @@ export function isFeatureLeafNode(node) {
   return children.every((child) => child.node_type === 'scenario')
 }
 
+export function isFeatureBranchNode(node) {
+  if (!node || node.node_type !== 'feature') return false
+  return !isFeatureLeafNode(node)
+}
+
 export function featureSpecWorkspaceFilePath(node) {
   if (!node?.path) return ''
   const spec = String(node.spec_path || 'spec.md').trim().replace(/^\/+/, '')

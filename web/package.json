@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "marked": "^17.0.6",
+    "plantuml-encoder": "^1.4.0",
     "vue": "^3.4.21"
   },
   "devDependencies": {

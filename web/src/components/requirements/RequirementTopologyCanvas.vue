@@ -4,7 +4,7 @@
       <div v-if="showLegend" class="rt-legend">
         <span class="rt-legend-title">图例</span>
         <span class="rt-legend-item"><i class="dot ir" />IR</span>
-        <span class="rt-legend-item"><i class="dot sr-done" />SR Done</span>
+        <span class="rt-legend-item"><i class="dot sr" />SR</span>
         <span class="rt-legend-item"><i class="dot ar" />AR</span>
         <span class="rt-legend-item"><i class="dot repo" />Repo</span>
         <span class="rt-legend-item"><i class="line link" />SR↔AR</span>
@@ -59,22 +59,27 @@
             />
             <circle
               :cx="node.x + 8"
-              :cy="node.y + 10"
+              :cy="node.y + TOP_PAD + 4"
               r="3"
               class="rt-node-dot"
               :style="{ fill: nodeColors(node).dot }"
             />
-            <text :x="node.x + 16" :y="node.y + 11" class="rt-node-id">{{ node.idLine }}</text>
+            <text :x="node.x + 16" :y="nodeIdY(node)" class="rt-node-id">{{ node.idLine }}</text>
             <text
-              v-for="(line, li) in node.titleLines"
-              :key="li"
               :x="node.x + 8"
-              :y="node.y + 22 + li * 11"
+              :y="nodeTitleStartY(node)"
               class="rt-node-title"
-            >{{ line }}</text>
+            >
+              <tspan
+                v-for="(line, li) in node.titleLines"
+                :key="li"
+                :x="node.x + 8"
+                :dy="li === 0 ? 0 : TITLE_LH"
+              >{{ line }}</tspan>
+            </text>
             <text
               :x="node.x + 8"
-              :y="node.y + node.h - 5"
+              :y="nodeStatusY(node)"
               class="rt-node-status"
             >{{ statusLabel(node.status, node.nodeType) }}</text>
           </g>
@@ -86,7 +91,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { buildRequirementGraphLayout } from '../../utils/requirementGraphLayout.js'
+import { buildRequirementGraphLayout, REQUIREMENT_LAYOUT } from '../../utils/requirementGraphLayout.js'
 import { requirementStatusColor, requirementStatusLabel } from '../../utils/requirementGraphModel.js'
 
 const props = defineProps({
@@ -107,6 +112,9 @@ const panning = ref(false)
 const panStart = ref({ x: 0, y: 0, panX: 0, panY: 0 })
 
 const VIEW_PAD = 24
+const {
+  TOP_PAD, HEADER_H, TITLE_BASELINE, TITLE_LH, STATUS_GAP, STATUS_H,
+} = REQUIREMENT_LAYOUT
 
 const layout = computed(() => buildRequirementGraphLayout(props.rootNode))
 
@@ -130,6 +138,19 @@ function nodeStyle(node) {
 
 function statusLabel(status, nodeType) {
   return requirementStatusLabel(status, nodeType)
+}
+
+function nodeIdY(node) {
+  return node.y + TOP_PAD + 9
+}
+
+function nodeTitleStartY(node) {
+  return node.y + TOP_PAD + HEADER_H + TITLE_BASELINE
+}
+
+function nodeStatusY(node) {
+  const titleBlock = TITLE_BASELINE + Math.max(0, node.titleLines.length - 1) * TITLE_LH
+  return node.y + TOP_PAD + HEADER_H + titleBlock + STATUS_GAP + STATUS_H
 }
 
 function zoomBy(delta) {
@@ -214,7 +235,7 @@ watch(
   display: inline-block;
 }
 .dot.ir { background: #3b82f6; }
-.dot.sr-done { background: #22c55e; }
+.dot.sr { background: #22c55e; }
 .dot.ar { background: #8b5cf6; }
 .dot.repo { background: #06b6d4; }
 .rt-legend-item .line {
@@ -285,15 +306,22 @@ watch(
   font-weight: 700;
   fill: #64748b;
   letter-spacing: 0.04em;
+  pointer-events: none;
 }
 .rt-node-title {
   font-size: 10px;
   font-weight: 600;
   fill: #1e293b;
+  pointer-events: none;
+}
+.rt-node-title tspan {
+  font-size: 10px;
+  font-weight: 600;
 }
 .rt-node-status {
   font-size: 8px;
   fill: #94a3b8;
+  pointer-events: none;
 }
 .rt-state {
   display: flex;

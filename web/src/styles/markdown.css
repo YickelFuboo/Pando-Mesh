@@ -36,6 +36,7 @@
 .pm-markdown h4,
 .pm-markdown h5,
 .pm-markdown h6 {
+  scroll-margin-top: 16px;
   margin: 0.85em 0 0.4em;
   font-weight: 600;
   line-height: 1.4;
@@ -126,4 +127,22 @@
 }
 .pm-markdown a:hover {
   text-decoration: underline;
+}
+.pm-markdown .pm-plantuml {
+  margin: 0.75em 0 1em;
+  padding: 12px;
+  border: 1px solid #e8eaed;
+  border-radius: 8px;
+  background: #fff;
+  overflow-x: auto;
+}
+.pm-markdown .pm-plantuml-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+.pm-markdown .pm-plantuml-error {
+  border-color: #fecaca;
+  background: #fef2f2;
 }

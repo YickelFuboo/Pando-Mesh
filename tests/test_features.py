@@ -71,6 +71,34 @@ def feature_workspace(tmp_path):
                         "path": "SCENARIO_001.md",
                     }
                 ],
+                "traceability": {
+                    "architecture_refs": [
+                        {
+                            "element_id": "smf",
+                            "path": "architectures/logic_view/elements/smf/spec.md",
+                        }
+                    ],
+                },
+            },
+            allow_unicode=True,
+        ),
+        encoding="utf-8",
+    )
+    (leaf / "arch_ref.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "elements_used": [
+                    {
+                        "element_id": "smf",
+                        "role": "相关架构元素",
+                        "spec_path": "architectures/logic_view/elements/smf/spec.md",
+                    },
+                    {
+                        "element_id": "upf",
+                        "role": "相关架构元素",
+                        "spec_path": "architectures/logic_view/elements/upf/spec.md",
+                    },
+                ],
             },
             allow_unicode=True,
         ),
@@ -91,3 +119,6 @@ def test_load_features_tree(feature_workspace):
     assert l2["id"] == "feat_x"
     assert len(l2["children"]) == 1
     assert l2["children"][0]["node_type"] == "scenario"
+    refs = {item["element_id"]: item for item in l2.get("architecture_refs") or []}
+    assert set(refs) == {"smf", "upf"}
+    assert refs["smf"]["role"] == "相关架构元素"

@@ -12,7 +12,15 @@
           :class="{ active: activeTab === 'spec' }"
           @click="activeTab = 'spec'"
         >
-          Spec.md
+          详情
+        </button>
+        <button
+          type="button"
+          class="aep-tab"
+          :class="{ active: activeTab === 'interfaces' }"
+          @click="activeTab = 'interfaces'"
+        >
+          接口关系
         </button>
         <button
           type="button"
@@ -34,6 +42,14 @@
       :title="elementNode?.name || ''"
     />
 
+    <ArchitectureInterfacesPanel
+      v-else-if="activeTab === 'interfaces'"
+      class="aep-interfaces-pane"
+      :workspace-path="workspacePath"
+      :element-node="elementNode"
+      @select-element="emit('select-element', $event)"
+    />
+
     <ArchitectureDepCanvas
       v-else
       class="aep-topology-pane"
@@ -49,8 +65,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
 import ArchitectureDocPanel from './ArchitectureDocPanel.vue'
+import ArchitectureInterfacesPanel from './ArchitectureInterfacesPanel.vue'
 import ArchitectureDepCanvas from './ArchitectureDepCanvas.vue'
 
 const props = defineProps({
@@ -61,14 +77,7 @@ const props = defineProps({
 
 const emit = defineEmits(['select-element', 'reset-root'])
 
-const activeTab = ref('spec')
-
-watch(
-  () => props.elementNode?.id,
-  () => {
-    activeTab.value = 'spec'
-  },
-)
+const activeTab = defineModel('activeTab', { type: String, default: 'topology' })
 </script>
 
 <style scoped>
@@ -134,6 +143,7 @@ watch(
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 .aep-spec-pane,
+.aep-interfaces-pane,
 .aep-topology-pane {
   flex: 1;
   min-height: 0;

@@ -93,7 +93,7 @@ export function elementStatusColor(node) {
   if (confidence === 'high') return { dot: '#3b82f6', bg: '#eff6ff', border: '#bfdbfe' }
   if (confidence === 'medium') return { dot: '#f97316', bg: '#fff7ed', border: '#fed7aa' }
   if (confidence === 'low') return { dot: '#eab308', bg: '#fefce8', border: '#fde68a' }
-  return { dot: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' }
+  return { dot: '#0d9488', bg: '#f0fdfa', border: '#5eead4' }
 }
 
 export function elementStatusLabel(node) {

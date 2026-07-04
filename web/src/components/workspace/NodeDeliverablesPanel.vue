@@ -31,10 +31,15 @@
           文件暂无内容
         </div>
         <div v-else class="markdown-body">
+          <TreeNodeInfoBar
+            v-if="Object.keys(fileMeta || {}).length"
+            :meta="fileMeta"
+            collapsible
+          />
+          <DocFilePath :path="selectedFile.path" />
           <MarkdownWithMeta
             :content="fileContent"
             :meta="fileMeta"
-            :file-path="selectedFile.resolvedPath"
           />
         </div>
       </div>
@@ -50,6 +55,8 @@ import {
   resolveNodeOutputPatterns,
 } from '../../utils/nodeDeliverables.js'
 import MarkdownWithMeta from '../common/MarkdownWithMeta.vue'
+import TreeNodeInfoBar from '../common/TreeNodeInfoBar.vue'
+import DocFilePath from '../common/DocFilePath.vue'
 
 const props = defineProps({
   workflowId: { type: String, default: '' },

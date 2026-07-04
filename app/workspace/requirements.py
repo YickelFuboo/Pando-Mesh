@@ -59,7 +59,7 @@ def _read_summary(req_dir: Path) -> str:
 
 
 def list_requirements(workspace_path: str) -> List[RequirementItem]:
-    from app.workspace.requirement_index import read_requirement_meta
+    from app.workspace.requirement_index import has_decomposed_index, read_requirement_meta
 
     root = requirements_root(workspace_path)
     items: List[RequirementItem] = []
@@ -79,7 +79,7 @@ def list_requirements(workspace_path: str) -> List[RequirementItem]:
                 summary=summary,
                 title=title,
                 status=str(meta.get("status") or "").strip(),
-                has_index=(entry / "requirement.yaml").is_file(),
+                has_index=has_decomposed_index(entry),
             )
         )
     return items

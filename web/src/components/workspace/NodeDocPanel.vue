@@ -47,12 +47,18 @@
         :content="activeRef.preview"
       />
 
-      <MarkdownWithMeta
-        v-else-if="activeView === 'doc' || !activeRef"
-        :content="content"
-        :meta="docMeta"
-        :file-path="viewPath"
-      />
+      <template v-else-if="activeView === 'doc' || !activeRef">
+        <TreeNodeInfoBar
+          v-if="Object.keys(docMeta || {}).length"
+          :meta="docMeta"
+          collapsible
+        />
+        <DocFilePath :path="viewPath" />
+        <MarkdownWithMeta
+          :content="content"
+          :meta="docMeta"
+        />
+      </template>
     </div>
   </section>
 </template>
@@ -66,6 +72,9 @@ import {
   formatDocLoadError,
 } from '../../utils/nodeDocFallback.js'
 import MarkdownWithMeta from '../common/MarkdownWithMeta.vue'
+import TreeNodeInfoBar from '../common/TreeNodeInfoBar.vue'
+import DocFilePath from '../common/DocFilePath.vue'
+import { normalizeWorkspaceRelativePath } from '../../utils/workspacePath.js'
 
 const props = defineProps({
   workflowId: { type: String, default: '' },
@@ -110,14 +119,16 @@ const viewTitle = computed(() => {
 
 const viewPath = computed(() => {
   if (activeView.value === 'ref' && activeRef.value) {
-    return activeRef.value.resolved_path || activeRef.value.path
+    return normalizeWorkspaceRelativePath(activeRef.value.path)
   }
-  return sourcePath.value
+  return normalizeWorkspaceRelativePath(sourcePath.value)
 })
 
 function globMatchLabel(match) {
+  const path = normalizeWorkspaceRelativePath(match?.path)
+  if (path) return path
   const resolved = String(match?.resolved_path || '')
-  if (!resolved) return match?.path || '未命名'
+  if (!resolved) return '未命名'
   const parts = resolved.replace(/\\/g, '/').split('/')
   return parts.slice(-2).join('/') || resolved
 }

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Query
@@ -8,7 +9,7 @@ from app.workspace.files import read_workspace_text_file
 from app.workspace.paths import normalize_workspace_path
 from app.workspace.requirements import list_requirements, requirement_path
 from app.workspace.features import load_features_tree
-from app.workspace.architectures import load_architectures_tree
+from app.workspace.architectures import load_architectures_tree, load_element_interfaces
 from app.workspace.requirement_index import load_requirements_tree
 from app.session.plan_mode import PlanMode, normalize_plan_mode
 from app.session.session_plan import hydrate_session_graph, session_plan_info
@@ -190,7 +191,7 @@ async def list_workspace_features(workspace_path: str):
     if not ws:
         raise HTTPException(status_code=400, detail="workspace_path 不能为空")
     try:
-        return load_features_tree(ws)
+        return await asyncio.to_thread(load_features_tree, ws)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:
@@ -204,6 +205,19 @@ async def list_workspace_architectures_tree(workspace_path: str):
         raise HTTPException(status_code=400, detail="workspace_path 不能为空")
     try:
         return load_architectures_tree(ws)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/meta/architectures/element-interfaces", summary="架构元素接口关系")
+async def list_architecture_element_interfaces(workspace_path: str, spec_path: str = Query(..., min_length=1)):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        return await asyncio.to_thread(load_element_interfaces, ws, spec_path)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except ValueError as e:

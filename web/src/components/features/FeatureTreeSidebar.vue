@@ -21,8 +21,9 @@
       </button>
     </header>
     <p v-if="error" class="fts-error">{{ error }}</p>
-    <p v-else-if="!loading && !topLevelNodes.length" class="fts-empty">暂无数据</p>
-    <ul v-else class="fts-tree">
+    <p v-else-if="loading" class="fts-loading">加载特性树…</p>
+    <p v-else-if="!topLevelNodes.length" class="fts-empty">暂无数据</p>
+    <ul v-else-if="topLevelNodes.length" class="fts-tree">
       <FeatureTreeNode
         v-for="child in topLevelNodes"
         :key="child.id"
@@ -159,6 +160,12 @@ watch(
   margin: 12px 14px;
   font-size: 12px;
   color: var(--pm-danger);
+}
+.fts-loading {
+  margin: 20px 14px;
+  font-size: 13px;
+  color: var(--pm-text-secondary);
+  text-align: center;
 }
 .fts-empty {
   margin: 20px 14px;
