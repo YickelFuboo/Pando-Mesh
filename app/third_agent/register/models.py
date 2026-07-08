@@ -1,7 +1,11 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict
-from app.register.executor_config import extract_history_config, extract_session_config, normalize_executor_template
-from app.register.types import AgentKind
+from app.third_agent.register.types import AgentKind
+from app.third_agent.register.utils import (
+    extract_history_config,
+    extract_session_config,
+    normalize_executor_template,
+)
 
 
 @dataclass
@@ -40,11 +44,11 @@ class AgentRegistration:
 
     @classmethod
     def from_storage_dict(cls, raw: Dict[str, Any]) -> "AgentRegistration":
-        kind_raw = str(raw.get("kind") or AgentKind.NATIVE.value).strip().lower()
+        kind_raw = str(raw.get("kind") or AgentKind.CLAUDE_CODE_CLI.value).strip().lower()
         try:
             kind = AgentKind(kind_raw)
         except ValueError:
-            kind = AgentKind.NATIVE
+            kind = AgentKind.CLAUDE_CODE_CLI
         executor = normalize_executor_template(
             dict(raw.get("executor_template") or {}),
             dict(raw.get("session_config") or {}),

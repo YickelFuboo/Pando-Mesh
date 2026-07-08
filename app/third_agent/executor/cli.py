@@ -1,4 +1,4 @@
-"""Planning 节点 CLI 执行器：调度 Claude Code、Codex 等命令行 Agent。"""
+﻿"""第三方 CLI Agent 通用 subprocess 执行引擎。"""
 import asyncio
 import json
 import os
@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from app.runtime.context import AgentContext, RuntimeContext
-from app.graph.plan_graph import GraphNode, PlanGraphState
 from app.graph.node_config import GraphNodeCliConfig, GraphNodeCliStep
+from app.third_agent.executor.base import ThirdAgentExecutor
+from app.third_agent.executor.types import AgentHistoryRequest, AgentRunRequest, AgentRunResult
 from app.workspace.paths import normalize_workspace_path
 from app.workspace.refs import expand_session_placeholders
 
@@ -20,37 +21,35 @@ _DISALLOWED_TOOLS_FLAGS = frozenset({"--disallowedTools", "--disallowed-tools"})
 _CLAUDE_CLI_NAME_RE = re.compile(r"claude", re.IGNORECASE)
 
 
-class CliNodeExecutor:
-    """Planning 图节点的 CLI 执行（外部命令行 Agent）。"""
+class CliAgentExecutor(ThirdAgentExecutor):
+    """CLI Agent 执行器：subprocess 引擎与历史读取调度。"""
 
-    @staticmethod
+    @classmethod
     async def run(
-        plan_graph: PlanGraphState,
-        graph_node: GraphNode,
-        task: str,
+        cls,
+        request: AgentRunRequest,
         agent_ctx: AgentContext,
         runtime_ctx: RuntimeContext,
-    ) -> str:
-        """按 run_mode 调 shell/commands，解析 stdout 并更新 node_session_id。"""
-        cli_cfg = graph_node.executor.cli
+    ) -> AgentRunResult:
+        cli_cfg = request.cli
         mode = cli_cfg.run_mode()
+        node_label = (request.node_label or request.node_id or "cli").strip()
         if not mode:
-            raise ValueError(f"节点「{graph_node.id}」CLI 配置缺少 shell 或 commands")
+            raise ValueError(f"节点「{node_label}」CLI 配置缺少 shell 或 commands")
 
         resume_session = False
-        cli_session_id = ""
+        cli_session_id = (request.session_id or "").strip()
         if cli_cfg.session.enabled:
-            cli_session_id = (plan_graph.node_session_id.get(graph_node.id) or "").strip()
             resume_session = bool(cli_session_id)
 
-        variables = CliNodeExecutor._build_template_vars(
-            task,
+        variables = cls._build_template_vars(
+            request.task,
             agent_ctx,
             cli_session_id,
             cli_cfg,
             resume_session=resume_session,
         )
-        cwd = CliNodeExecutor._resolve_cli_cwd(
+        cwd = cls._resolve_cli_cwd(
             cli_cfg.cwd,
             agent_ctx.workspace_path,
             requirement_id=agent_ctx.requirement_id,
@@ -58,26 +57,82 @@ class CliNodeExecutor:
         env = {**os.environ, **cli_cfg.env}
 
         if mode == "shell":
-            stdout_bytes, stderr_bytes, returncode = await CliNodeExecutor._run_shell_mode(
+            stdout_bytes, stderr_bytes, returncode = await cls._run_shell_mode(
                 cli_cfg, variables, cwd, env, runtime_ctx, resume_session=resume_session
             )
         else:
-            stdout_bytes, stderr_bytes, returncode = await CliNodeExecutor._run_commands_mode(
+            stdout_bytes, stderr_bytes, returncode = await cls._run_commands_mode(
                 cli_cfg, variables, cwd, env, runtime_ctx, resume_session=resume_session
             )
 
         stdout = stdout_bytes.decode("utf-8", errors="replace")
         stderr = stderr_bytes.decode("utf-8", errors="replace")
-        result, parsed_session_id = CliNodeExecutor._resolve_cli_result(
+        result, parsed_session_id = cls._resolve_cli_result(
             cli_cfg,
             stdout,
             stderr,
             returncode,
         )
-        # 如果 session 配置启用，并且 parsed_session_id 不为空，则将 parsed_session_id 写入 plan_graph.node_session_id
-        if cli_cfg.session.enabled and parsed_session_id:
-            plan_graph.node_session_id[graph_node.id] = parsed_session_id
-        return result
+        session_id = parsed_session_id if cli_cfg.session.enabled and parsed_session_id else None
+        return AgentRunResult(result=result, session_id=session_id)
+
+    @classmethod
+    async def get_history(cls, request: AgentHistoryRequest):
+        handler = cls._resolve_handler(request)
+        return await handler.get_history(request)
+
+    @classmethod
+    def _resolve_handler(cls, request: AgentHistoryRequest):
+        kind = cls._resolve_cli_kind(request)
+        return cls._kind_handlers()[kind]
+
+    @classmethod
+    def _resolve_cli_kind(cls, request: AgentHistoryRequest) -> str:
+        from app.third_agent.register.register import AgentRegistry
+        from app.third_agent.register.types import AgentKind
+
+        agent_id = (request.registered_agent_id or "").strip()
+        if agent_id:
+            reg = AgentRegistry().get(agent_id)
+            if reg is not None and reg.kind.value in cls._kind_handlers():
+                return reg.kind.value
+        inferred = cls._infer_kind_from_cli(request.cli)
+        if inferred:
+            return inferred
+        return AgentKind.CLAUDE_CODE_CLI.value
+
+    @classmethod
+    def _infer_kind_from_cli(cls, cli_cfg: GraphNodeCliConfig | None) -> str | None:
+        from app.third_agent.register.types import AgentKind
+
+        if cli_cfg is None:
+            return None
+        command = ""
+        if cli_cfg.commands:
+            command = (cli_cfg.commands[0].command or "").lower()
+        elif cli_cfg.shell:
+            command = cli_cfg.shell.lower()
+        if "codex" in command:
+            return AgentKind.CODEX_CLI.value
+        if "trae" in command:
+            return AgentKind.TREA_CLI.value
+        if "claude" in command:
+            return AgentKind.CLAUDE_CODE_CLI.value
+        return None
+
+    @classmethod
+    def _kind_handlers(cls) -> dict:
+        from app.third_agent.executor.cli_claude import CliClaude
+        from app.third_agent.executor.cli_codex import CliCodex
+        from app.third_agent.executor.cli_trae import CliTrae
+        from app.third_agent.register.types import AgentKind
+
+        return {
+            AgentKind.CLAUDE_CODE_CLI.value: CliClaude,
+            AgentKind.CODEX_CLI.value: CliCodex,
+            AgentKind.TREA_CLI.value: CliTrae,
+        }
+
 
     @staticmethod
     def _build_template_vars(
@@ -105,7 +160,7 @@ class CliNodeExecutor:
             "requirement_id": req_id,
             "cli_session_id": cli_session_id,
         }
-        session_args = CliNodeExecutor._build_session_arg_list(
+        session_args = CliAgentExecutor._build_session_arg_list(
             cli_cfg, variables, resume_session=resume_session
         )
         variables["session_args"] = " ".join(shlex.quote(part) for part in session_args)
@@ -124,12 +179,12 @@ class CliNodeExecutor:
         cli_session_id = (variables.get("cli_session_id") or "").strip()
         if not cli_session_id or not resume_session:
             return []
-        return CliNodeExecutor._expand_template_list(cli_cfg.session.resume_args, variables)
+        return CliAgentExecutor._expand_template_list(cli_cfg.session.resume_args, variables)
 
     @staticmethod
     def _expand_template_list(items: List[str], variables: Dict[str, str]) -> List[str]:
         """对 argv 列表逐项做 expand_template。"""
-        return [CliNodeExecutor._expand_template(item, variables) for item in items]
+        return [CliAgentExecutor._expand_template(item, variables) for item in items]
 
     @staticmethod
     def _expand_template(value: str, variables: Dict[str, str]) -> str:
@@ -180,7 +235,7 @@ class CliNodeExecutor:
         resume_session: bool,
     ) -> Tuple[bytes, bytes, int]:
         """cli.shell 模式：整段脚本一次 subprocess。"""
-        shell_cmd = CliNodeExecutor._build_shell_command(
+        shell_cmd = CliAgentExecutor._build_shell_command(
             cli_cfg,
             cli_cfg.shell,
             variables,
@@ -188,7 +243,7 @@ class CliNodeExecutor:
             with_session=True,
         )
         stdin_text = variables.get("task") if cli_cfg.input_mode == "stdin" else None
-        return await CliNodeExecutor._run_subprocess_shell(
+        return await CliAgentExecutor._run_subprocess_shell(
             shell_cmd,
             cwd,
             env,
@@ -215,10 +270,10 @@ class CliNodeExecutor:
         last_stdout = b""
         last_stderr = b""
         last_code = 0
-        last_idx = CliNodeExecutor._last_exec_step_index(steps)
+        last_idx = CliAgentExecutor._last_exec_step_index(steps)
         for idx, step in enumerate(steps):
             if step.cwd:
-                current_cwd = CliNodeExecutor._resolve_cli_cwd(
+                current_cwd = CliAgentExecutor._resolve_cli_cwd(
                     step.cwd,
                     variables.get("workspace") or None,
                     requirement_id=variables.get("requirement_id") or "",
@@ -226,7 +281,7 @@ class CliNodeExecutor:
                 )
             with_session = idx == last_idx
             if step.shell:
-                shell_cmd = CliNodeExecutor._build_shell_command(
+                shell_cmd = CliAgentExecutor._build_shell_command(
                     cli_cfg,
                     step.shell,
                     variables,
@@ -234,7 +289,7 @@ class CliNodeExecutor:
                     with_session=with_session,
                 )
                 stdin_text = variables.get("task") if cli_cfg.input_mode == "stdin" and with_session else None
-                last_stdout, last_stderr, last_code = await CliNodeExecutor._run_subprocess_shell(
+                last_stdout, last_stderr, last_code = await CliAgentExecutor._run_subprocess_shell(
                     shell_cmd,
                     current_cwd,
                     env,
@@ -243,14 +298,14 @@ class CliNodeExecutor:
                     cli_cfg.timeout_sec,
                 )
             elif step.command:
-                argv, stdin_text = CliNodeExecutor._build_exec_argv(
+                argv, stdin_text = CliAgentExecutor._build_exec_argv(
                     cli_cfg,
                     step,
                     variables,
                     resume_session=resume_session,
                     with_session=with_session,
                 )
-                last_stdout, last_stderr, last_code = await CliNodeExecutor._run_subprocess_exec(
+                last_stdout, last_stderr, last_code = await CliAgentExecutor._run_subprocess_exec(
                     argv,
                     current_cwd,
                     env,
@@ -292,7 +347,7 @@ class CliNodeExecutor:
         if not argv:
             raise ValueError("CLI argv 为空")
         argv = list(argv)
-        argv[0] = CliNodeExecutor._resolve_executable(argv[0])
+        argv[0] = CliAgentExecutor._resolve_executable(argv[0])
         proc = await asyncio.create_subprocess_exec(
             *argv,
             cwd=cwd,
@@ -303,7 +358,7 @@ class CliNodeExecutor:
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                CliNodeExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
+                CliAgentExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
                 timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
@@ -335,11 +390,11 @@ class CliNodeExecutor:
             stdin=asyncio.subprocess.PIPE if stdin_text is not None else None,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            executable=CliNodeExecutor._shell_executable(),
+            executable=CliAgentExecutor._shell_executable(),
         )
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                CliNodeExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
+                CliAgentExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
                 timeout=timeout_sec,
             )
         except asyncio.TimeoutError:
@@ -434,7 +489,7 @@ class CliNodeExecutor:
         """向 argv 追加 --disallowedTools；已存在的工具名不重复添加。"""
         if not tools:
             return list(argv)
-        existing = CliNodeExecutor._collect_disallowed_tools(argv)
+        existing = CliAgentExecutor._collect_disallowed_tools(argv)
         missing = [name for name in tools if name not in existing]
         if not missing:
             return list(argv)
@@ -459,7 +514,7 @@ class CliNodeExecutor:
     @staticmethod
     def _append_disallowed_tools_to_shell(shell_cmd: str, tools: Tuple[str, ...]) -> str:
         """向 shell 命令追加 --disallowedTools；仅 Claude 命令生效，已有配置不重复。"""
-        if not tools or not CliNodeExecutor._shell_invokes_claude(shell_cmd):
+        if not tools or not CliAgentExecutor._shell_invokes_claude(shell_cmd):
             return shell_cmd
         existing: set = set()
         for match in re.finditer(r"--disallowed[-_]tools\s+(\S+)", shell_cmd, re.IGNORECASE):
@@ -483,18 +538,18 @@ class CliNodeExecutor:
         with_session: bool,
     ) -> Tuple[List[str], Optional[str]]:
         """将 commands 单步展开为 exec argv；仅 with_session 时追加 session 参数与 task。"""
-        argv = [CliNodeExecutor._expand_template(step.command, variables)]
-        argv.extend(CliNodeExecutor._expand_template_list(list(step.args), variables))
+        argv = [CliAgentExecutor._expand_template(step.command, variables)]
+        argv.extend(CliAgentExecutor._expand_template_list(list(step.args), variables))
         if with_session:
             argv.extend(
-                CliNodeExecutor._build_session_arg_list(cli_cfg, variables, resume_session=resume_session)
+                CliAgentExecutor._build_session_arg_list(cli_cfg, variables, resume_session=resume_session)
             )
-            argv, stdin = CliNodeExecutor._append_task_input(cli_cfg, argv, variables)
-            if CliNodeExecutor._is_claude_cli_argv(argv):
-                argv = CliNodeExecutor._append_disallowed_tools(argv, _PLANNING_CLI_DISALLOWED_TOOLS)
+            argv, stdin = CliAgentExecutor._append_task_input(cli_cfg, argv, variables)
+            if CliAgentExecutor._is_claude_cli_argv(argv):
+                argv = CliAgentExecutor._append_disallowed_tools(argv, _PLANNING_CLI_DISALLOWED_TOOLS)
             return argv, stdin
         if any("{task}" in part for part in argv):
-            return [CliNodeExecutor._expand_template(part, variables) for part in argv], None
+            return [CliAgentExecutor._expand_template(part, variables) for part in argv], None
         return argv, None
 
     @staticmethod
@@ -507,19 +562,19 @@ class CliNodeExecutor:
         with_session: bool,
     ) -> str:
         """展开 shell 模板并追加 session/task；shell 未写 {session_args} 时自动拼 session argv。"""
-        expanded = CliNodeExecutor._expand_template(shell_text, variables)
+        expanded = CliAgentExecutor._expand_template(shell_text, variables)
         if with_session and cli_cfg.session.enabled and "{session_args}" not in shell_text:
-            session_args = CliNodeExecutor._build_session_arg_list(
+            session_args = CliAgentExecutor._build_session_arg_list(
                 cli_cfg, variables, resume_session=resume_session
             )
             if session_args:
                 expanded = f"{expanded} {' '.join(shlex.quote(part) for part in session_args)}"
         if "{task}" in expanded:
-            expanded = CliNodeExecutor._expand_template(expanded, variables)
+            expanded = CliAgentExecutor._expand_template(expanded, variables)
         if not with_session:
             return expanded
-        if CliNodeExecutor._shell_invokes_claude(expanded):
-            expanded = CliNodeExecutor._append_disallowed_tools_to_shell(
+        if CliAgentExecutor._shell_invokes_claude(expanded):
+            expanded = CliAgentExecutor._append_disallowed_tools_to_shell(
                 expanded, _PLANNING_CLI_DISALLOWED_TOOLS
             )
         if cli_cfg.input_mode == "stdin":
@@ -541,7 +596,7 @@ class CliNodeExecutor:
         if not task:
             return list(argv)
         items = list(argv)
-        prompt_idxs = CliNodeExecutor._prompt_flag_indexes(items)
+        prompt_idxs = CliAgentExecutor._prompt_flag_indexes(items)
         if prompt_idxs:
             insert_at = prompt_idxs[0] + 1
             return items[:insert_at] + [task] + items[insert_at:]
@@ -556,7 +611,7 @@ class CliNodeExecutor:
             input_mode == "arg"
             and task
             and "\n" in task
-            and CliNodeExecutor._prompt_flag_indexes(argv)
+            and CliAgentExecutor._prompt_flag_indexes(argv)
         ):
             return True
         return False
@@ -571,11 +626,11 @@ class CliNodeExecutor:
         task = variables.get("task", "")
         has_task_placeholder = any("{task}" in part for part in argv)
         if has_task_placeholder:
-            return [CliNodeExecutor._expand_template(part, variables) for part in argv], None
-        if CliNodeExecutor._should_deliver_task_via_stdin(argv, task, cli_cfg.input_mode):
+            return [CliAgentExecutor._expand_template(part, variables) for part in argv], None
+        if CliAgentExecutor._should_deliver_task_via_stdin(argv, task, cli_cfg.input_mode):
             return argv, task
         if cli_cfg.input_mode == "arg" and task:
-            return CliNodeExecutor._inject_task_arg(argv, task), None
+            return CliAgentExecutor._inject_task_arg(argv, task), None
         return argv, None
 
     @staticmethod

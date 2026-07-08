@@ -19,7 +19,7 @@ from app.graph.plan_graph import (
     PlanGraphPhase,
     PlanGraphState,
 )
-from app.register.registry import AgentRegistry
+from app.third_agent.register.register import AgentRegistry
 
 PLAN_MAX_GRAPH_NODES = 12
 _LLM_ABORT_POLL_SEC = 0.2

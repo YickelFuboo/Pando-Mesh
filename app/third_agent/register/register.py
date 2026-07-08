@@ -1,17 +1,17 @@
 from typing import Dict, List, Optional
-from app.register.executor_config import (
+from app.third_agent.register.defaults import default_template_for_kind, load_factory_agent, parse_agent_kind
+from app.third_agent.register.models import AgentRegistration
+from app.third_agent.register.store import AgentStore
+from app.third_agent.register.types import AgentKind
+from app.third_agent.register.utils import (
     extract_history_config,
     extract_session_config,
     normalize_executor_template,
 )
-from app.register.models import AgentRegistration
-from app.register.seed import default_agents, default_template_for_kind, parse_agent_kind
-from app.register.store import AgentStore
-from app.register.types import AgentKind
 
 
 class AgentRegistry:
-    """Agent 注册服务：内置默认见 seed.py；用户保存后写入 data/agents/{agent_id}.json。"""
+    """Agent 注册服务：出厂默认见 data/agents/_defaults/；运行时见 data/agents/*.json。"""
 
     def __init__(self, store: Optional[AgentStore] = None) -> None:
         self._store = store or AgentStore()
@@ -33,15 +33,18 @@ class AgentRegistry:
     def get(self, agent_id: str) -> Optional[AgentRegistration]:
         return self._agents.get((agent_id or "").strip())
 
+    def is_factory_modified(self, agent_id: str) -> bool:
+        return self._store.is_factory_modified(agent_id)
+
     def default_template(self, kind: str) -> Dict[str, object]:
-        return default_template_for_kind(kind)
+        return default_template_for_kind(kind, self._store.data_root)
 
     def register(
         self,
         *,
         agent_id: str,
         name: str = "",
-        kind: str = AgentKind.NATIVE.value,
+        kind: str = AgentKind.CLAUDE_CODE_CLI.value,
         description: str = "",
         executor_template: Optional[Dict[str, object]] = None,
         session_config: Optional[Dict[str, object]] = None,
@@ -124,8 +127,8 @@ class AgentRegistry:
         reg = self.get(aid)
         if reg is None or not reg.builtin:
             return None
-        self._store.reset_builtin(aid)
-        fresh = next(a for a in default_agents() if a.agent_id == aid)
+        self._store.reset_factory(aid)
+        fresh = load_factory_agent(aid, self._store.data_root)
         self._agents[aid] = fresh
         return fresh
 

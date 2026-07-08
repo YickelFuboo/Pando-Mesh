@@ -82,7 +82,7 @@ export function buildAgentPayload(form, { mergeSession = true } = {}) {
 export function fillAgentForm(form, agent) {
   form.agent_id = agent.agent_id || ''
   form.name = agent.name || ''
-  form.kind = agent.kind || 'native'
+  form.kind = agent.kind || 'claude_code_cli'
   form.description = agent.description || ''
   const executor = agent.executor_template || {}
   form.executor_template_text = JSON.stringify(stripSessionFromExecutorTemplate(executor), null, 2)

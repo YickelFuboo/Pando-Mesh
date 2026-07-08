@@ -201,6 +201,10 @@ export function unregisterAgent(agentId) {
   return request(`/agents/${encodeURIComponent(agentId)}`, { method: 'DELETE' })
 }
 
+export function resetBuiltinAgent(agentId) {
+  return request(`/agents/${encodeURIComponent(agentId)}/reset`, { method: 'POST' })
+}
+
 export function listWorkflowTemplates() {
   return request('/workflows/templates')
 }

@@ -2,7 +2,8 @@
 import asyncio
 from unittest.mock import AsyncMock, patch
 
-from app.graph.cli_executor import CliNodeExecutor
+from app.third_agent.executor.cli import CliAgentExecutor
+from app.third_agent.executor.types import AgentRunRequest
 from app.graph.plan_graph import PLAN_GRAPH_METADATA_KEY, GraphNode, PlanGraphState
 from app.graph.node_config import (
     GraphNodeCliConfig,
@@ -69,11 +70,11 @@ class TestCliSessionPersistence:
 
 class TestCliCommandBuild:
     def test_resolve_executable_windows_shim(self):
-        with patch("app.graph.cli_executor.shutil.which", return_value=r"C:\npm\claude-code-best.cmd"):
-            assert CliNodeExecutor._resolve_executable("claude-code-best") == r"C:\npm\claude-code-best.cmd"
+        with patch("app.third_agent.executor.cli.shutil.which", return_value=r"C:\npm\claude-code-best.cmd"):
+            assert CliAgentExecutor._resolve_executable("claude-code-best") == r"C:\npm\claude-code-best.cmd"
 
     def test_resolve_executable_keeps_explicit_suffix(self):
-        assert CliNodeExecutor._resolve_executable("claude-code-best.cmd") == "claude-code-best.cmd"
+        assert CliAgentExecutor._resolve_executable("claude-code-best.cmd") == "claude-code-best.cmd"
 
     def _claude_cfg(self, **kwargs) -> GraphNodeCliConfig:
         return GraphNodeCliConfig(
@@ -85,7 +86,7 @@ class TestCliCommandBuild:
         cfg = self._claude_cfg(session=GraphNodeCliSessionConfig(enabled=True))
         step = cfg.commands[0]
         variables = {"task": "hello", "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv == ["claude", "-p", "hello", *_CLAUDE_DISALLOWED]
@@ -95,7 +96,7 @@ class TestCliCommandBuild:
         cfg = self._claude_cfg(session=GraphNodeCliSessionConfig(enabled=True))
         step = cfg.commands[0]
         variables = {"task": "hello", "cli_session_id": "uuid-1", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=True, with_session=True,
         )
         assert argv == ["claude", "-p", "hello", "--resume", "uuid-1", *_CLAUDE_DISALLOWED]
@@ -114,7 +115,7 @@ class TestCliCommandBuild:
         step = cfg.commands[0]
         task = "请分析当前代码仓的主要功能。"
         variables = {"task": task, "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv == [
@@ -141,7 +142,7 @@ class TestCliCommandBuild:
         )
         step = cfg.commands[0]
         variables = {"task": "hello", "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert "--disallowedTools" in argv
@@ -160,7 +161,7 @@ class TestCliCommandBuild:
         )
         step = cfg.commands[0]
         variables = {"task": "hello", "cli_session_id": "", "workspace": "/ws"}
-        argv, _stdin = CliNodeExecutor._build_exec_argv(
+        argv, _stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv.count("--disallowedTools") == 1
@@ -173,7 +174,7 @@ class TestCliCommandBuild:
         )
         step = cfg.commands[0]
         variables = {"task": "hello", "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert "--disallowedTools" not in argv
@@ -191,7 +192,7 @@ class TestCliCommandBuild:
             "cli_session_id": "",
             "session_args": "",
         }
-        cmd = CliNodeExecutor._build_shell_command(
+        cmd = CliAgentExecutor._build_shell_command(
             cfg, cfg.shell, variables, resume_session=False, with_session=True,
         )
         assert "--disallowedTools AskUserQuestion" in cmd
@@ -209,7 +210,7 @@ class TestCliCommandBuild:
         step = cfg.commands[0]
         task = "## 用户任务\n重新执行\n\n请分析代码仓。"
         variables = {"task": task, "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv == [
@@ -229,7 +230,7 @@ class TestCliCommandBuild:
         step = cfg.commands[0]
         task = "单行任务"
         variables = {"task": task, "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv == ["claude", "-p", task, *_CLAUDE_DISALLOWED]
@@ -242,7 +243,7 @@ class TestCliCommandBuild:
         )
         step = cfg.commands[0]
         variables = {"task": "do work", "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
         assert argv == ["codex", "exec"]
@@ -257,12 +258,12 @@ class TestCliCommandBuild:
             input_mode="arg",
         )
         variables = {"task": "big task", "cli_session_id": "", "workspace": "/ws"}
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, cfg.commands[0], variables, resume_session=False, with_session=False,
         )
         assert argv == ["npm", "test"]
         assert stdin is None
-        argv, stdin = CliNodeExecutor._build_exec_argv(
+        argv, stdin = CliAgentExecutor._build_exec_argv(
             cfg, cfg.commands[1], variables, resume_session=False, with_session=True,
         )
         assert argv == ["claude", "-p", "big task", *_CLAUDE_DISALLOWED]
@@ -280,7 +281,7 @@ class TestCliCommandBuild:
             "cli_session_id": "sid-1",
             "session_args": "--resume sid-1",
         }
-        cmd = CliNodeExecutor._build_shell_command(
+        cmd = CliAgentExecutor._build_shell_command(
             cfg, cfg.shell, variables, resume_session=True, with_session=True,
         )
         assert cmd.startswith("cd /proj && claude -p --resume sid-1 ")
@@ -331,23 +332,16 @@ class TestGraphNodeExecutor:
         assert node.executor.cli.commands[0].command == "echo"
 
 
-class TestCliNodeExecutorRun:
-    def test_run_persists_session_from_json_output(self):
-        plan = PlanGraphState()
-        graph_node = GraphNode(
-            id="step_a",
-            label="测试",
-            executor=GraphNodeExecutor.from_cli(
-                GraphNodeCliConfig(
-                    commands=(GraphNodeCliStep(command="echo"),),
-                    input_mode="stdin",
-                    output_mode="json",
-                    result_json_key="result",
-                    session=GraphNodeCliSessionConfig(
-                        enabled=True,
-                        read_session_id_from_json=True,
-                    ),
-                ),
+class TestCliAgentExecutorRun:
+    def test_run_returns_session_from_json_output(self):
+        cli_cfg = GraphNodeCliConfig(
+            commands=(GraphNodeCliStep(command="echo"),),
+            input_mode="stdin",
+            output_mode="json",
+            result_json_key="result",
+            session=GraphNodeCliSessionConfig(
+                enabled=True,
+                read_session_id_from_json=True,
             ),
         )
         agent_ctx = AgentContext(
@@ -357,6 +351,12 @@ class TestCliNodeExecutorRun:
         )
         runtime_ctx = RuntimeContext(
             actor_id="planning:test",
+        )
+        request = AgentRunRequest(
+            task="task body",
+            cli=cli_cfg,
+            node_id="step_a",
+            node_label="测试",
         )
 
         async def _run():
@@ -369,24 +369,21 @@ class TestCliNodeExecutorRun:
                 )
             )
             with patch(
-                "app.graph.cli_executor.asyncio.create_subprocess_exec",
+                "app.third_agent.executor.cli.asyncio.create_subprocess_exec",
                 new=AsyncMock(return_value=mock_proc),
             ), patch(
-                "app.graph.cli_executor.CliNodeExecutor._resolve_cli_cwd",
+                "app.third_agent.executor.cli.CliAgentExecutor._resolve_cli_cwd",
                 return_value="/tmp/ws",
             ):
-                result = await CliNodeExecutor.run(
-                    plan,
-                    graph_node,
-                    "task body",
+                return await CliAgentExecutor.run(
+                    request,
                     agent_ctx,
                     runtime_ctx,
                 )
-                return result
 
-        result = asyncio.run(_run())
-        assert result == "done"
-        assert plan.node_session_id["step_a"] == "from-cli-99"
+        run_result = asyncio.run(_run())
+        assert run_result.result == "done"
+        assert run_result.session_id == "from-cli-99"
 
 
 class TestCliSessionPlaceholders:
@@ -397,7 +394,7 @@ class TestCliSessionPlaceholders:
             requirement_id="req1",
         )
         cli_cfg = GraphNodeCliConfig(session=GraphNodeCliSessionConfig(enabled=False))
-        variables = CliNodeExecutor._build_template_vars(
+        variables = CliAgentExecutor._build_template_vars(
             "task body",
             agent_ctx,
             "",
@@ -412,7 +409,7 @@ class TestCliSessionPlaceholders:
         ws = tmp_path / "project"
         req_dir = ws / "requirements" / "req1"
         req_dir.mkdir(parents=True)
-        cwd = CliNodeExecutor._resolve_cli_cwd(
+        cwd = CliAgentExecutor._resolve_cli_cwd(
             "{workspace}/requirements/{requirement_id}",
             str(ws),
             requirement_id="req1",

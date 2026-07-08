@@ -443,7 +443,7 @@ class GraphNodeExecutor:
         agent_id = str(raw.get("registered_agent_id") or "").strip()
         if not agent_id:
             return raw
-        from app.register.registry import AgentRegistry
+        from app.third_agent.register.register import AgentRegistry
         agent = AgentRegistry().get(agent_id)
         if agent is None or not agent.executor_template:
             return raw

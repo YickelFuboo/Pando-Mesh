@@ -1,33 +1,11 @@
-from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from typing import Any, Dict
 from fastapi import APIRouter, HTTPException
-from app.register.executor_config import extract_history_config, extract_session_config
-from app.register.registry import AgentRegistry
-from app.register.types import AgentKind
+from app.third_agent.register.register import AgentRegistry
+from app.third_agent.register.schemas import AgentRegisterRequest, AgentUpdateRequest
+from app.third_agent.register.utils import extract_history_config, extract_session_config
 
 router = APIRouter(prefix="/agents")
 _registry = AgentRegistry()
-
-
-class AgentRegisterRequest(BaseModel):
-    agent_id: str = Field(..., min_length=1)
-    name: str = ""
-    kind: str = AgentKind.NATIVE.value
-    description: str = ""
-    executor_template: Dict[str, Any] = Field(default_factory=dict)
-    session_config: Dict[str, Any] = Field(default_factory=dict)
-    history_config: Dict[str, Any] = Field(default_factory=dict)
-    enabled: bool = True
-
-
-class AgentUpdateRequest(BaseModel):
-    name: Optional[str] = None
-    kind: Optional[str] = None
-    description: Optional[str] = None
-    executor_template: Optional[Dict[str, Any]] = None
-    session_config: Optional[Dict[str, Any]] = None
-    history_config: Optional[Dict[str, Any]] = None
-    enabled: Optional[bool] = None
 
 
 @router.get("", summary="Agent 列表")
@@ -97,7 +75,7 @@ async def update_agent(agent_id: str, body: AgentUpdateRequest):
     return _agent_info(updated)
 
 
-@router.post("/{agent_id}/reset", summary="恢复内置 Agent 为 seed 默认")
+@router.post("/{agent_id}/reset", summary="恢复内置 Agent 为出厂默认")
 async def reset_builtin_agent(agent_id: str):
     restored = _registry.reset_builtin(agent_id.strip())
     if restored is None:
@@ -113,4 +91,7 @@ async def unregister_agent(agent_id: str):
 
 
 def _agent_info(reg) -> Dict[str, Any]:
-    return reg.to_api_dict()
+    payload = reg.to_api_dict()
+    if reg.builtin:
+        payload["modified"] = _registry.is_factory_modified(reg.agent_id)
+    return payload

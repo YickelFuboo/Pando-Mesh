@@ -195,10 +195,10 @@ const props = defineProps({
 })
 
 const KIND_LABELS = {
-  native: '自研',
-  codex_sdk: 'Codex SDK',
   claude_code_cli: 'Claude Code CLI',
-  api: '第三方 API',
+  codex_cli: 'Codex CLI',
+  trea_cli: 'Trea CLI',
+  restful_api: 'Restful API',
 }
 
 function kindLabel(kind) {

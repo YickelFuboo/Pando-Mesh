@@ -1,0 +1,43 @@
+{
+  "agent_id": "claude_code",
+  "name": "Claude Code CLI",
+  "kind": "claude_code_cli",
+  "description": "Anthropic Claude Code 命令行 Agent，适合代码开发与审查",
+  "executor_template": {
+    "kind": "cli",
+    "cli": {
+      "commands": [
+        {
+          "command": "claude",
+          "args": [
+            "-p",
+            "--output-format",
+            "json",
+            "--dangerously-skip-permissions",
+            "--disallowedTools",
+            "AskUserQuestion"
+          ]
+        }
+      ],
+      "input": "arg",
+      "cwd": "{workspace}",
+      "timeout_sec": 3600,
+      "output_mode": "json",
+      "result_json_key": "result",
+      "session": {
+        "enabled": true,
+        "resume_args": [
+          "--resume",
+          "{cli_session_id}"
+        ],
+        "read_session_id_from_json": true,
+        "session_id_json_key": "session_id",
+        "history": {
+          "config_dir": "~/.claude"
+        }
+      }
+    }
+  },
+  "enabled": true,
+  "builtin": true
+}

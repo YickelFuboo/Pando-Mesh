@@ -1,21 +1,18 @@
 {
-  "agent_id": "codex_cli",
-  "name": "Codex CLI",
-  "kind": "codex_cli",
-  "description": "OpenAI Codex 命令行编码助手",
+  "agent_id": "trea_cli",
+  "name": "Trea CLI",
+  "kind": "trea_cli",
+  "description": "Trea 命令行 Agent",
   "executor_template": {
     "kind": "cli",
     "cli": {
       "commands": [
         {
-          "command": "codex",
-          "args": [
-            "exec",
-            "--full-auto"
-          ]
+          "command": "trae",
+          "args": []
         }
       ],
-      "input": "arg",
+      "input": "stdin",
       "cwd": "{workspace}",
       "timeout_sec": 3600,
       "output_mode": "stdout",

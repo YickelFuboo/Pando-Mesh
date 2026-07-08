@@ -57,12 +57,11 @@ def normalize_executor_template(
     session_config: Dict[str, Any] | None = None,
     history_config: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
-    merged = merge_cli_session(
+    return merge_cli_session(
         executor_template or {},
         session_config or {},
         history_config or {},
     )
-    return merged
 
 
 def split_executor_views(

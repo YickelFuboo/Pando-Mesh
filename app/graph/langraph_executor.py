@@ -21,7 +21,8 @@ from app.graph.plan_graph import (
     PlanGraphPhase,
     PlanGraphState,
 )
-from app.graph.cli_executor import CliNodeExecutor
+from app.graph.agent_bridge import apply_run_result, build_history_request, build_run_request
+from app.third_agent.executor.dispatch import ThirdAgentDispatcher
 from app.graph.execution_pause import ExpandPause, HumanGatePause
 from app.graph.expand_planner import ExpandPlannerCallback, uses_native_llm_planner
 from app.graph.graph_expand import parse_expansion_result
@@ -559,13 +560,13 @@ class LangGraphExecutor:
             await runtime_ctx.notify_user_callback(Message.assistant_message(start_notice))
 
         try:
-            result = await CliNodeExecutor.run(
-                plan_graph,
-                graph_node,
-                text_task,
+            run_request = build_run_request(graph_node, plan_graph, text_task)
+            run_result = await ThirdAgentDispatcher.run(
+                run_request,
                 agent_ctx,
                 runtime_ctx,
             )
+            result = apply_run_result(plan_graph, graph_node.id, run_result)
         except asyncio.CancelledError:
             raise
         except Exception:

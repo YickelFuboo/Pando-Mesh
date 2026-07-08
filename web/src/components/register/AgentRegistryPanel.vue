@@ -4,8 +4,8 @@
       <div>
         <h2>Agent 注册</h2>
         <p class="hint">
-          内置 Agent 默认在 <code>app/register/seed.py</code>；
-          <code>data/agents/</code> 仅存放您<strong>保存过的修改</strong>（如 <code>claude_code.json</code>）。
+          出厂默认仅维护 <code>data/agents/_defaults/</code>（git 跟踪）；
+          首次启动自动生成 <code>data/agents/*.json</code>，UI 保存与恢复默认均操作运行时文件。
         </p>
       </div>
       <button type="button" class="btn btn-primary" @click="openCreate">注册 Agent</button>
@@ -33,6 +33,7 @@
           <div class="card-tags">
             <span v-if="agent.builtin" class="tag tag-builtin">内置</span>
             <span v-else class="tag tag-custom">自定义</span>
+            <span v-if="agent.builtin && agent.modified" class="tag tag-modified">已修改</span>
           </div>
           <div class="switch-row">
             <span class="switch-label">启用</span>
@@ -50,6 +51,15 @@
         </div>
         <footer class="card-actions">
           <button type="button" class="btn" @click="openEdit(agent)">编辑配置</button>
+          <button
+            v-if="agent.builtin && agent.modified"
+            type="button"
+            class="btn"
+            :disabled="resettingId === agent.agent_id"
+            @click="onResetBuiltin(agent)"
+          >
+            {{ resettingId === agent.agent_id ? '恢复中…' : '恢复默认' }}
+          </button>
           <button
             v-if="!agent.builtin"
             type="button"
@@ -98,10 +108,10 @@
               :disabled="dialogMode === 'edit' && viewing?.builtin"
               @change="onKindChange"
             >
-              <option value="native">自研 (native)</option>
-              <option value="codex_sdk">Codex SDK</option>
               <option value="claude_code_cli">Claude Code CLI</option>
-              <option value="api">第三方 API</option>
+              <option value="codex_cli">Codex CLI</option>
+              <option value="trea_cli">Trea CLI</option>
+              <option value="restful_api">Restful API</option>
             </select>
           </div>
           <div class="field">
@@ -174,8 +184,8 @@
             </label>
           </div>
           <p v-if="dialogMode === 'edit'" class="field-hint save-hint">
-            保存后写入 <code>data/agents/{{ form.agent_id || 'agent_id' }}.json</code>（覆盖 seed 默认）；
-            未保存过则仍使用 seed.py 内置模板。
+            保存后写入 <code>data/agents/{{ form.agent_id || 'agent_id' }}.json</code>；
+            内置 Agent 可点「恢复默认」从 <code>data/agents/_defaults/</code> 还原。
           </p>
           <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
           <footer class="dialog-foot">
@@ -192,7 +202,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { getAgentKindDefaults, listAgents, registerAgent, unregisterAgent, updateAgent } from '../../api/layerApi.js'
+import { getAgentKindDefaults, listAgents, registerAgent, resetBuiltinAgent, unregisterAgent, updateAgent } from '../../api/layerApi.js'
 import { applyKindDefaultsToForm, fillAgentForm, historyConfigFromForm, mergeCliSessionIntoExecutor } from '../../utils/agentRegistryForm.js'
 
 const emit = defineEmits(['changed'])
@@ -205,6 +215,7 @@ const dialogMode = ref('create')
 const viewing = ref(null)
 const submitting = ref(false)
 const deletingId = ref('')
+const resettingId = ref('')
 const togglingId = ref('')
 const errorMsg = ref('')
 
@@ -221,30 +232,25 @@ const form = reactive({
 })
 
 const KIND_LABELS = {
-  native: '自研',
-  codex_sdk: 'Codex SDK',
   claude_code_cli: 'Claude Code CLI',
-  api: '第三方 API',
+  codex_cli: 'Codex CLI',
+  trea_cli: 'Trea CLI',
+  restful_api: 'Restful API',
 }
 
 function kindLabel(kind) {
   return KIND_LABELS[kind] || kind
 }
 
-const isReactKind = computed(() => form.kind === 'api' || form.kind === 'native')
+const isReactKind = computed(() => form.kind === 'restful_api')
 const showCliSessionFields = computed(() => form.kind === 'claude_code_cli')
 
-const reactAgentTypeLabel = computed(() => {
-  if (form.kind === 'api') {
-    return 'ThirdPartyApi（kind: react）'
-  }
-  return 'AiDeveloper（kind: react）'
-})
+const reactAgentTypeLabel = computed(() => 'ThirdPartyApi（kind: react）')
 
 function buildReactExecutorTemplate() {
   return {
     kind: 'react',
-    agent_type: form.kind === 'api' ? 'ThirdPartyApi' : 'AiDeveloper',
+    agent_type: 'ThirdPartyApi',
   }
 }
 
@@ -416,6 +422,21 @@ async function onToggleChange(agent, event) {
     alert(e?.message || '更新启用状态失败')
   } finally {
     togglingId.value = ''
+  }
+}
+
+async function onResetBuiltin(agent) {
+  if (!agent?.agent_id || !agent.builtin) return
+  if (!window.confirm(`确定将「${agent.name || agent.agent_id}」恢复为出厂默认？`)) return
+  resettingId.value = agent.agent_id
+  try {
+    await resetBuiltinAgent(agent.agent_id)
+    await refresh()
+    emit('changed')
+  } catch (e) {
+    alert(e?.message || '恢复失败')
+  } finally {
+    resettingId.value = ''
   }
 }
 
@@ -614,6 +635,7 @@ defineExpose({ refresh })
 }
 .tag-builtin { background: #e8f0fe; color: #1557b0; }
 .tag-custom { background: #fef7e0; color: #b06000; }
+.tag-modified { background: #fce8e6; color: #c5221f; }
 .card-actions {
   display: flex;
   gap: 8px;

@@ -2,7 +2,8 @@ import asyncio
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 from fastapi import APIRouter, HTTPException, Query
-from app.graph.cli_history import CliHistoryReader
+from app.graph.agent_bridge import build_history_request
+from app.third_agent.executor.dispatch import ThirdAgentDispatcher
 from app.graph.plan_graph import PLAN_GRAPH_METADATA_KEY, PlanGraphState
 from app.session.node_doc import load_node_doc, load_requirement_readme
 from app.workspace.files import read_workspace_text_file
@@ -689,11 +690,12 @@ async def get_node_messages(workflow_id: str, node_id: str):
     if not cli_session_id:
         return []
     try:
-        msgs = await CliHistoryReader.fetch_node_messages(
+        history_request = build_history_request(
             graph_node,
             cli_session_id,
             record.workspace_path or "",
         )
+        msgs = await ThirdAgentDispatcher.get_history(history_request)
     except ValueError:
         return []
     except FileNotFoundError:

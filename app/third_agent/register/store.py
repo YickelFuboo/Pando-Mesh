@@ -1,50 +1,69 @@
 import json
 import logging
+import shutil
 from dataclasses import replace
 from pathlib import Path
 from typing import Dict, Optional
+from app.config.paths import DEFAULT_DATA_DIR
 from app.config.settings import settings
-from app.register.models import AgentRegistration
-from app.register.seed import builtin_agent_ids, default_agents
+from app.third_agent.register.defaults import (
+    agents_dir,
+    factory_agent_ids,
+    factory_dir,
+    list_factory_agents,
+    load_factory_agent,
+    shipped_factory_dir,
+)
+from app.third_agent.register.models import AgentRegistration
 
 logger = logging.getLogger(__name__)
 
 LEGACY_REGISTRY_FILE = "registry.json"
 
 
-def agents_dir(root: Optional[Path] = None) -> Path:
-    base = root or settings.data_dir
-    return base / "agents"
-
-
 class AgentStore:
-    """Agent 持久化：内置默认来自 seed.py；data/agents/{id}.json 仅存用户覆盖或自定义 Agent。"""
+    """Agent 存储：_defaults 为出厂目录，agents/*.json 为运行时配置。"""
 
-    def __init__(self, root: Optional[Path] = None) -> None:
-        self._root = agents_dir(root)
+    def __init__(self, data_root: Optional[Path] = None) -> None:
+        self._data_root = data_root or settings.data_dir
+        self._root = agents_dir(self._data_root)
         self._root.mkdir(parents=True, exist_ok=True)
-        self._builtin_ids = builtin_agent_ids()
+        self._sync_factory_catalog()
+        self._factory_ids = factory_agent_ids(self._data_root)
+
+    @property
+    def data_root(self) -> Path:
+        return self._data_root
 
     def agent_path(self, agent_id: str) -> Path:
         return self._root / f"{agent_id.strip()}.json"
 
-    def has_override(self, agent_id: str) -> bool:
-        return self.agent_path(agent_id).is_file()
+    def is_factory_modified(self, agent_id: str) -> bool:
+        aid = (agent_id or "").strip()
+        if aid not in self._factory_ids:
+            return False
+        runtime = self._read_file(self.agent_path(aid))
+        if runtime is None:
+            return False
+        try:
+            factory = load_factory_agent(aid, self._data_root)
+        except ValueError:
+            return True
+        return runtime.to_storage_dict() != factory.to_storage_dict()
 
     def load_all(self) -> Dict[str, AgentRegistration]:
         self._migrate_legacy_registry()
-        agents = {agent.agent_id: agent for agent in default_agents()}
+        self._ensure_runtime_agents()
+        agents: Dict[str, AgentRegistration] = {}
         for path in sorted(self._root.glob("*.json")):
             if path.stem.startswith("registry"):
                 continue
-            overlay = self._read_file(path)
-            if overlay is None:
+            reg = self._read_file(path)
+            if reg is None:
                 continue
-            aid = overlay.agent_id
-            if aid in self._builtin_ids:
-                agents[aid] = replace(overlay, agent_id=aid, builtin=True)
-            else:
-                agents[aid] = replace(overlay, builtin=False)
+            aid = reg.agent_id
+            builtin = aid in self._factory_ids
+            agents[aid] = replace(reg, agent_id=aid, builtin=builtin)
         return agents
 
     def save(self, registration: AgentRegistration) -> None:
@@ -62,11 +81,29 @@ class AgentStore:
         path.unlink()
         return True
 
-    def reset_builtin(self, agent_id: str) -> bool:
+    def reset_factory(self, agent_id: str) -> bool:
         aid = (agent_id or "").strip()
-        if aid not in self._builtin_ids:
+        if aid not in self._factory_ids:
             return False
-        return self.delete(aid)
+        self.save(load_factory_agent(aid, self._data_root))
+        return True
+
+    def _sync_factory_catalog(self) -> None:
+        target = factory_dir(self._data_root)
+        shipped = shipped_factory_dir()
+        if not shipped.is_dir():
+            return
+        target.mkdir(parents=True, exist_ok=True)
+        for path in sorted(shipped.glob("*.json")):
+            dest = target / path.name
+            if not dest.is_file():
+                shutil.copy2(path, dest)
+
+    def _ensure_runtime_agents(self) -> None:
+        for aid in sorted(self._factory_ids):
+            if self.agent_path(aid).is_file():
+                continue
+            self.save(load_factory_agent(aid, self._data_root))
 
     def _read_file(self, path: Path) -> Optional[AgentRegistration]:
         try:
@@ -111,9 +148,9 @@ class AgentStore:
                 if not isinstance(patch, dict) or "enabled" not in patch:
                     continue
                 aid = str(agent_id).strip()
-                if aid not in self._builtin_ids:
+                if aid not in self._factory_ids:
                     continue
-                base = next(a for a in default_agents() if a.agent_id == aid)
+                base = next(a for a in list_factory_agents(self._data_root) if a.agent_id == aid)
                 enabled = bool(patch["enabled"])
                 if enabled == base.enabled:
                     continue
