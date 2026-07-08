@@ -3,9 +3,20 @@ import logging
 from typing import Any, Dict, Optional
 from app.runtime.abort import AbortReason, RunAbortController
 from app.graph.execution_pause import ExpandPause, HumanGatePause
-from app.graph.graph_expand import expand_tasks_into_graph
+from app.graph.graph_expand import (
+    apply_expansion_to_graph,
+    dedupe_graph_edges,
+    graph_has_disconnected_nodes,
+    graph_has_duplicate_edges,
+    graph_has_missing_node_refs,
+    graph_needs_post_merge_restore,
+    infer_lanes_from_expand_outputs,
+    repair_lane_expand_graph,
+    restore_post_merge_flow,
+)
+from app.graph.expand_planner import build_expand_planner_callback
 from app.graph.langraph_executor import LangGraphExecutor
-from app.graph.plan_graph import EdgeCondition, PlanGraphPhase, PlanGraphState
+from app.graph.plan_graph import DirectExecGraph, EdgeCondition, PlanGraphPhase, PlanGraphState
 from app.plan.planning import PlanningLLMService
 from app.graph.judge import build_judge_callback
 from app.runtime.context import AgentContext, RuntimeContext
@@ -180,20 +191,15 @@ class WorkflowService:
         if not tpl_id:
             raise ValueError("template_id 不能为空")
         if self.is_running(workflow_id):
-            raise RuntimeError("工作流正在执行中")
+            raise RuntimeError("工作流正在执行中，请先停止后再初始化")
         template = await self._template_store.get(tpl_id)
         if template is None:
             raise KeyError(tpl_id)
         record = await self._store.get(workflow_id)
         if record is None:
             raise KeyError(workflow_id)
-        phase = record.plan_state.phase
-        if phase in (
-            PlanGraphPhase.EXECUTING,
-            PlanGraphPhase.AWAITING_HUMAN,
-            PlanGraphPhase.AWAITING_EXPAND,
-        ):
-            raise ValueError("当前状态不可初始化，请先处理待确认事项或停止执行")
+        if record.plan_state.phase == PlanGraphPhase.EXECUTING:
+            raise RuntimeError("工作流正在执行中，请先停止后再初始化")
         apply_template_to_record(record, template)
         record.template_id = tpl_id
         record.plan_mode = PlanMode.TEMPLATE.value
@@ -225,6 +231,54 @@ class WorkflowService:
             "is_cli": graph_node.is_cli(),
         }
 
+    async def get_workflow(self, workflow_id: str) -> Optional[WorkflowRecord]:
+        record = await self._load_record(workflow_id)
+        if record is None:
+            return None
+        return await self._ensure_graph_integrity(record)
+
+    async def _resolve_template_reference_graph(self, record: WorkflowRecord) -> Optional[DirectExecGraph]:
+        template_id = (record.template_id or "").strip()
+        if not template_id:
+            return None
+        template = await self._template_store.get(template_id)
+        if template is None:
+            return None
+        return DirectExecGraph.from_dict(template.graph)
+
+    async def _ensure_graph_integrity(self, record: WorkflowRecord) -> WorkflowRecord:
+        graph = record.plan_state.resolve_graph()
+        if graph is None:
+            return record
+        changed = False
+        lanes = infer_lanes_from_expand_outputs(record.plan_state.node_outputs)
+        if graph_has_missing_node_refs(graph):
+            if not lanes:
+                raise ValueError("拓扑中 Lane 节点引用缺失，且无法从 expand 产出恢复，请重新确认分裂")
+            graph = repair_lane_expand_graph(
+                graph,
+                lanes=lanes,
+                global_placeholders={
+                    "requirement_id": record.requirement_id or "",
+                    "workspace": record.workspace_path or "",
+                },
+            )
+            changed = True
+        elif graph_has_duplicate_edges(graph):
+            graph = dedupe_graph_edges(graph)
+            changed = True
+        if lanes and (graph_has_disconnected_nodes(graph) or graph_needs_post_merge_restore(graph)):
+            reference = await self._resolve_template_reference_graph(record)
+            if reference is not None:
+                restored = restore_post_merge_flow(graph, reference)
+                if restored.to_dict() != graph.to_dict():
+                    graph = restored
+                    changed = True
+        if changed:
+            record.plan_state.plan_graph = graph
+            await self._store.save(record)
+        return record
+
     async def execute(
         self,
         workflow_id: str,
@@ -238,9 +292,27 @@ class WorkflowService:
             record = await self._load_record(workflow_id)
             if record is None:
                 raise KeyError(workflow_id)
+            record = await self._ensure_graph_integrity(record)
             graph = record.plan_state.resolve_graph()
             if graph is None:
                 raise ValueError("请先配置有效拓扑")
+            plan_state = record.plan_state
+            if not self.is_running(workflow_id) and plan_state.phase == PlanGraphPhase.EXECUTING:
+                plan_state.phase = PlanGraphPhase.IDLE
+                plan_state.running_node_ids = []
+            if start_node_id:
+                plan_state.pending_gate = {}
+                plan_state.pending_expand = {}
+                if plan_state.phase in (
+                    PlanGraphPhase.AWAITING_HUMAN,
+                    PlanGraphPhase.AWAITING_EXPAND,
+                ):
+                    plan_state.phase = PlanGraphPhase.IDLE
+                await self._store.save(record)
+            elif clear_history:
+                plan_state.pending_gate = {}
+                plan_state.pending_expand = {}
+                await self._store.save(record)
             abort = RunAbortController()
             self._abort_controllers[workflow_id] = abort
             task = asyncio.create_task(
@@ -253,6 +325,9 @@ class WorkflowService:
         if ctrl is None:
             return False
         ctrl.request_abort(AbortReason.USER_INTERRUPT, "用户中止")
+        task = self._running_tasks.get(workflow_id)
+        if task is not None and not task.done():
+            task.cancel()
         return True
 
     async def _run_execution(
@@ -299,29 +374,65 @@ class WorkflowService:
             llm_model=record.llm_model or None,
             abort_controller=abort,
         )
+        expand_planner_cb = build_expand_planner_callback(
+            llm_provider=record.llm_provider or None,
+            llm_model=record.llm_model or None,
+            abort_controller=abort,
+        )
 
+        resume_start: Optional[str] = start_node_id
         try:
-            await LangGraphExecutor.run(
-                plan_state,
-                agent_ctx,
-                runtime_ctx,
-                persist_plangraph_callback=persist,
-                judge_route_callback=judge_cb,
-                start_node_id=start_node_id,
-            )
-        except HumanGatePause:
+            while True:
+                try:
+                    await LangGraphExecutor.run(
+                        plan_state,
+                        agent_ctx,
+                        runtime_ctx,
+                        persist_plangraph_callback=persist,
+                        judge_route_callback=judge_cb,
+                        expand_planner_callback=expand_planner_cb,
+                        start_node_id=resume_start,
+                    )
+                    break
+                except HumanGatePause as pause:
+                    fresh = await self._store.get(workflow_id)
+                    if fresh is None:
+                        return
+                    next_id = await self._try_auto_human_gate_apply(fresh, pause.node_id)
+                    if not next_id:
+                        fresh.plan_state.running_node_ids = []
+                        fresh.plan_state.phase = PlanGraphPhase.AWAITING_HUMAN
+                        await self._store.save(fresh)
+                        return
+                    plan_state = fresh.plan_state
+                    graph = plan_state.resolve_graph()
+                    if graph and not graph.is_entry_node(next_id):
+                        plan_state.clear_execution_from_node(next_id)
+                    resume_start = next_id
+                    continue
+                except ExpandPause as pause:
+                    fresh = await self._store.get(workflow_id)
+                    if fresh is None:
+                        return
+                    fork_id = await self._try_auto_expand_apply(fresh, pause.node_id)
+                    if not fork_id:
+                        fresh.plan_state.running_node_ids = []
+                        fresh.plan_state.phase = PlanGraphPhase.AWAITING_EXPAND
+                        await self._store.save(fresh)
+                        return
+                    plan_state = fresh.plan_state
+                    graph = plan_state.resolve_graph()
+                    if graph and not graph.is_entry_node(fork_id):
+                        plan_state.clear_execution_from_node(fork_id)
+                    resume_start = fork_id
+                    continue
+        except asyncio.CancelledError:
             fresh = await self._store.get(workflow_id)
             if fresh is not None:
+                fresh.plan_state.phase = PlanGraphPhase.IDLE
                 fresh.plan_state.running_node_ids = []
-                fresh.plan_state.phase = PlanGraphPhase.AWAITING_HUMAN
                 await self._store.save(fresh)
-            return
-        except ExpandPause:
-            fresh = await self._store.get(workflow_id)
-            if fresh is not None:
-                fresh.plan_state.running_node_ids = []
-                fresh.plan_state.phase = PlanGraphPhase.AWAITING_EXPAND
-                await self._store.save(fresh)
+                await self._append_message(fresh, Message.assistant_message("编排已中止。"))
             return
         except Exception as e:
             logger.exception("Workflow execution failed: %s", workflow_id)
@@ -401,6 +512,79 @@ class WorkflowService:
             raise KeyError(workflow_id)
         return fresh
 
+    async def _try_auto_human_gate_apply(self, record: WorkflowRecord, human_node_id: str) -> Optional[str]:
+        graph = record.plan_state.resolve_graph()
+        if graph is None or human_node_id not in graph.nodes:
+            return None
+        human_node = graph.nodes[human_node_id]
+        human_cfg = human_node.executor.human
+        if human_cfg is None or not human_cfg.auto_confirm:
+            return None
+        pending = record.plan_state.pending_gate or {}
+        if str(pending.get("node_id") or "").strip() != human_node_id:
+            return None
+        summary = str(pending.get("summary") or "").strip()
+        record.plan_state.node_outputs[human_node_id] = summary
+        record.plan_state.pending_gate = {}
+        record.plan_state.phase = PlanGraphPhase.IDLE
+        next_ids = graph.resolve_next_node_ids(human_node_id, EdgeCondition.PASS)
+        if not next_ids:
+            raise ValueError("人工节点缺少 pass 出边")
+        await self._store.save(record)
+        await self._append_message(
+            record,
+            Message.assistant_message(f"已自动确认步骤「{human_node.label}」，继续执行。"),
+        )
+        return next_ids[0]
+
+    async def _try_auto_expand_apply(self, record: WorkflowRecord, expand_node_id: str) -> Optional[str]:
+        graph = record.plan_state.resolve_graph()
+        if graph is None or expand_node_id not in graph.nodes:
+            return None
+        expand_cfg = graph.nodes[expand_node_id].executor.expand
+        if expand_cfg is None or not expand_cfg.is_auto_confirm():
+            return None
+        pending = record.plan_state.pending_expand or {}
+        if str(pending.get("node_id") or "").strip() != expand_node_id:
+            return None
+        fork_id = self._apply_pending_expand(record, pending)
+        branch_count = len(pending.get("lanes") or []) if str(pending.get("mode") or "") == "lane" else len(pending.get("tasks") or [])
+        branch_label = "Lane" if str(pending.get("mode") or "") == "lane" else "子任务"
+        await self._store.save(record)
+        await self._append_message(
+            record,
+            Message.assistant_message(f"已自动确认分裂 {branch_count} 个{branch_label}，拓扑已更新并继续执行。"),
+        )
+        return fork_id
+
+    def _apply_pending_expand(self, record: WorkflowRecord, pending: Dict[str, Any]) -> str:
+        expand_node_id = str(pending.get("node_id") or "").strip()
+        mode = str(pending.get("mode") or "task").strip().lower()
+        tasks = pending.get("tasks") or []
+        lanes = pending.get("lanes") or []
+        if not expand_node_id or (mode == "lane" and not lanes) or (mode != "lane" and not tasks):
+            raise ValueError("待分裂任务无效")
+        graph = record.plan_state.resolve_graph()
+        if graph is None:
+            raise ValueError("拓扑无效")
+        merge_label = str(pending.get("merge_label") or "任务汇聚")
+        global_placeholders = {
+            "requirement_id": record.requirement_id or "",
+            "workspace": record.workspace_path or "",
+        }
+        expansion = {"mode": mode, "tasks": tasks, "lanes": lanes}
+        new_graph, fork_id = apply_expansion_to_graph(
+            graph,
+            expand_node_id=expand_node_id,
+            expansion=expansion,
+            merge_label=merge_label,
+            global_placeholders=global_placeholders,
+        )
+        record.plan_state.plan_graph = new_graph
+        record.plan_state.pending_expand = {}
+        record.plan_state.phase = PlanGraphPhase.IDLE
+        return fork_id
+
     async def expand_apply(self, workflow_id: str) -> WorkflowRecord:
         record = await self._load_record(workflow_id)
         if record is None:
@@ -408,27 +592,13 @@ class WorkflowService:
         if record.plan_state.phase != PlanGraphPhase.AWAITING_EXPAND:
             raise ValueError("当前无待确认的任务分裂")
         pending = record.plan_state.pending_expand or {}
-        expand_node_id = str(pending.get("node_id") or "").strip()
-        tasks = pending.get("tasks") or []
-        if not expand_node_id or not tasks:
-            raise ValueError("待分裂任务无效")
-        graph = record.plan_state.resolve_graph()
-        if graph is None:
-            raise ValueError("拓扑无效")
-        merge_label = str(pending.get("merge_label") or "任务汇聚")
-        new_graph, fork_id = expand_tasks_into_graph(
-            graph,
-            expand_node_id=expand_node_id,
-            tasks=tasks,
-            merge_label=merge_label,
-        )
-        record.plan_state.plan_graph = new_graph
-        record.plan_state.pending_expand = {}
-        record.plan_state.phase = PlanGraphPhase.IDLE
+        fork_id = self._apply_pending_expand(record, pending)
+        branch_count = len(pending.get("lanes") or []) if str(pending.get("mode") or "") == "lane" else len(pending.get("tasks") or [])
+        branch_label = "Lane" if str(pending.get("mode") or "") == "lane" else "子任务"
         await self._store.save(record)
         await self._append_message(
             record,
-            Message.assistant_message(f"已确认分裂 {len(tasks)} 个子任务，即将并行执行。"),
+            Message.assistant_message(f"已确认分裂 {branch_count} 个{branch_label}，即将并行执行。"),
         )
         await self.execute(workflow_id, start_node_id=fork_id)
         fresh = await self._store.get(workflow_id)

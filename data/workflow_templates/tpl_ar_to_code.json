@@ -1,11 +1,10 @@
 {
   "template_id": "tpl_ar_to_code",
-  "name": "AR→代码实现",
-  "description": "基于实现设计进行变更范围细化、编码实现、合规检查、UT 生成与执行（Workspace: skills/ 目录）",
-  "user_goal": "对 {requirement_id} 完成代码变更范围细化、编码实现、单元测试生成与执行验收",
+  "name": "AR代码实现",
+  "description": "基于实现设计进行变更范围细化、编码实现、合规检查、UT 生成与执行；支持 {repo_id} 占位符用于并行 Lane 展开（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 的 {repo_id} 代码仓完成变更范围细化、编码实现、单元测试生成与执行验收",
   "judge_mode": "auto",
   "graph": {
-    "entry": "step_scope_refine",
     "nodes": [
       {
         "id": "step_scope_refine",
@@ -14,7 +13,38 @@
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
-          "registered_agent_id": "claude_code"
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": ["--resume", "{cli_session_id}"],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
         },
         "phase": "开发",
         "node_role": "execute",
@@ -30,16 +60,47 @@
       {
         "id": "step_codegen",
         "label": "编码实现",
-        "task": "请使用 {workspace}/skills/08-fwd-generate-code 这个 skill，按 {requirement_id} 的实现设计文档生成代码变更",
+        "task": "请使用 {workspace}/skills/08-fwd-generate-code 这个 skill，按 requirements/{requirement_id}/repo_changes/{repo_id}/implementation_design.md 完成 {repo_id} 代码仓变更",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
-          "registered_agent_id": "claude_code"
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": ["--resume", "{cli_session_id}"],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
         },
         "phase": "开发",
         "node_role": "execute",
         "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+          "requirements/{requirement_id}/repo_changes/{repo_id}/implementation_design.md",
           "requirements/{requirement_id}/repo_changes/overview.md"
         ]
       },
@@ -50,7 +111,38 @@
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
-          "registered_agent_id": "claude_code"
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": ["--resume", "{cli_session_id}"],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
         },
         "phase": "开发",
         "node_role": "check",
@@ -65,12 +157,43 @@
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
-          "registered_agent_id": "claude_code"
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": ["--resume", "{cli_session_id}"],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
         },
         "phase": "开发",
         "node_role": "execute",
         "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+          "requirements/{requirement_id}/repo_changes/{repo_id}/implementation_design.md",
           "requirements/{requirement_id}/repo_changes/overview.md",
           "requirements/{requirement_id}/test_changes/test_points.md"
         ]
@@ -82,7 +205,38 @@
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
-          "registered_agent_id": "claude_code"
+          "registered_agent_id": "claude_code",
+          "cli": {
+            "input": "arg",
+            "cwd": "{workspace}",
+            "timeout_sec": 3600,
+            "env": {},
+            "output_mode": "json",
+            "result_json_key": "result",
+            "session": {
+              "enabled": true,
+              "resume_args": ["--resume", "{cli_session_id}"],
+              "read_session_id_from_json": true,
+              "session_id_json_key": "session_id",
+              "history": {
+                "provider": "claude_code_jsonl",
+                "config_dir": "~/.claude"
+              }
+            },
+            "commands": [
+              {
+                "command": "claude",
+                "args": [
+                  "-p",
+                  "--output-format",
+                  "json",
+                  "--dangerously-skip-permissions",
+                  "--disallowedTools",
+                  "AskUserQuestion"
+                ]
+              }
+            ]
+          }
         },
         "phase": "测试",
         "node_role": "check",
@@ -116,9 +270,10 @@
       { "from": "step_ut_execute", "to": "step_ut_generate", "condition": "reject" },
       { "from": "gate_delivery", "to": "END", "condition": "pass" },
       { "from": "gate_delivery", "to": "step_codegen", "condition": "reject" }
-    ]
+    ],
+    "entry": "step_scope_refine"
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-04 15:00:00"
+  "updated_at": "2026-07-06 22:15:00"
 }

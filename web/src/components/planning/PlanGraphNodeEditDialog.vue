@@ -45,6 +45,8 @@
                 <option value="execute">AI执行类</option>
                 <option value="check">AI检查类</option>
                 <option value="human">人工卡点类</option>
+                <option value="expand">扩展类</option>
+                <option value="fork">分支汇聚类</option>
               </select>
               <p v-if="form.nodeVisualType === 'human'" class="hint-text">
                 人工验收节点，需配置 pass / reject 出边：pass 继续下游，reject 返工上游。
@@ -52,7 +54,85 @@
               <p v-else-if="form.nodeVisualType === 'check'" class="hint-text">
                 AI检查类由 Judge 或 LLM 审查上游产出。
               </p>
+              <p v-else-if="form.nodeVisualType === 'expand'" class="hint-text">
+                扩展类按 Lane 模板并行展开子工作流；规划由 LLM 或上游产出 JSON 完成。
+              </p>
+              <p v-else-if="form.nodeVisualType === 'fork'" class="hint-text">
+                分支汇聚类通常由扩展节点自动插入，一般无需手动创建。
+              </p>
             </div>
+          </section>
+
+          <section v-if="form.nodeVisualType === 'human'" class="section">
+            <h3 class="section-title">人工卡点配置</h3>
+            <div class="field">
+              <label for="pn-human-auto">是否自动执行</label>
+              <select id="pn-human-auto" v-model="form.humanAutoConfirm">
+                <option :value="false">否</option>
+                <option :value="true">是</option>
+              </select>
+              <p class="hint-text">
+                选择「是」时，到达该卡点后等同默认人工确认通过，自动沿 pass 出边继续执行。
+              </p>
+            </div>
+          </section>
+
+          <section v-if="form.nodeVisualType === 'expand'" class="section">
+            <h3 class="section-title">扩展配置</h3>
+            <div class="field">
+              <label for="pn-expand-template">Lane 模板</label>
+              <select
+                id="pn-expand-template"
+                v-model="form.expandDefaultLaneTemplateId"
+                @change="onExpandTemplateChange"
+              >
+                <option value="">请选择模板</option>
+                <option v-for="tpl in workflowTemplates" :key="tpl.template_id" :value="tpl.template_id">
+                  {{ tpl.name }}（{{ tpl.template_id }}）
+                </option>
+              </select>
+              <p class="hint-text">每个并行分支实例化该 Workflow 模板；占位符由扩展规划填入</p>
+            </div>
+            <div class="field">
+              <label for="pn-expand-catalog">候选模板（可选）</label>
+              <textarea
+                id="pn-expand-catalog"
+                v-model="form.expandCatalogTemplatesText"
+                class="mono"
+                rows="2"
+                spellcheck="false"
+                placeholder="每行一个 template_id；留空则仅使用上方 Lane 模板"
+              />
+            </div>
+            <div class="field-row-2">
+              <div class="field">
+                <label for="pn-expand-planner">扩展规划</label>
+                <select id="pn-expand-planner" v-model="form.expandPlanner">
+                  <option value="source">上游产出 / 默认</option>
+                  <option value="native_llm">Session LLM 规划</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="pn-expand-confirm">分裂确认</label>
+                <select id="pn-expand-confirm" v-model="form.expandConfirmMode">
+                  <option value="manual">手工确认</option>
+                  <option value="auto">自动确认</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row-2">
+              <div class="field">
+                <label for="pn-expand-merge">汇聚节点名称</label>
+                <input id="pn-expand-merge" v-model="form.expandMergeLabel" type="text" placeholder="任务汇聚" />
+              </div>
+              <div class="field">
+                <label for="pn-expand-source">任务来源节点 id</label>
+                <input id="pn-expand-source" v-model="form.expandSourceNodeId" type="text" placeholder="留空则取直接上游" />
+              </div>
+            </div>
+            <p v-if="form.expandConfirmMode === 'auto'" class="hint-text">
+              自动确认：LLM 规划完成后直接生成分叉/汇聚拓扑并继续执行，无需点击「确认分裂」。
+            </p>
           </section>
 
           <section class="section">
@@ -81,21 +161,9 @@
             </div>
           </section>
 
-          <section v-if="form.nodeVisualType !== 'human'" class="section">
+          <section v-if="form.nodeVisualType !== 'human' && form.nodeVisualType !== 'expand' && form.nodeVisualType !== 'fork'" class="section">
             <h3 class="section-title">执行 Agent</h3>
-            <div v-if="form.executorKind === 'expand'" class="subsection">
-              <div class="field">
-                <label for="pn-expand-source">任务来源节点 id</label>
-                <input id="pn-expand-source" v-model="form.expandSourceNodeId" type="text" placeholder="留空则取直接上游" />
-              </div>
-              <div class="field">
-                <label for="pn-expand-merge">汇聚节点名称</label>
-                <input id="pn-expand-merge" v-model="form.expandMergeLabel" type="text" placeholder="任务汇聚" />
-              </div>
-              <p class="hint-text">任务分裂节点；上游产出需为 JSON：{"tasks":[{"id","label","task"}, ...]}</p>
-            </div>
-            <template v-else>
-              <div v-if="!agentOptions.length" class="hint-text">
+            <div v-if="!agentOptions.length" class="hint-text">
                 暂无已注册 Agent，请先在「Agent 注册」中配置后再编辑本步骤。
               </div>
               <div v-else class="field field-full">
@@ -116,7 +184,6 @@
                   命令、参数、结果 JSON 字段、会话续跑与历史目录等均取自 Agent 注册模板；本步骤只需填写上方「任务说明」。
                 </p>
               </div>
-            </template>
           </section>
         </div>
 
@@ -146,8 +213,9 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { applyRegisteredAgentToForm, canRemoveGraphNode, editFormToNode, listNodeRelatedEdges, nodeToEditForm, syncFormFromNodeVisualType, usesRegisteredAgent } from '../../utils/planGraphEdit.js'
+import { listWorkflowTemplates } from '../../api/layerApi.js'
 
 const KIND_LABELS = {
   native: '自研',
@@ -165,7 +233,8 @@ function pickDefaultRegisteredAgent(options) {
 
 function ensureRegisteredAgentDefault() {
   if (form.value.nodeVisualType === 'human') return
-  if (form.value.executorKind === 'expand') return
+  if (form.value.nodeVisualType === 'expand' || form.value.nodeVisualType === 'fork') return
+  if (form.value.executorKind === 'expand' || form.value.executorKind === 'fork') return
   if (!props.agentOptions.length) return
   if (form.value.registeredAgentId) return
   const preferred = pickDefaultRegisteredAgent(props.agentOptions)
@@ -213,6 +282,26 @@ function onRegisteredAgentChange() {
 
 const form = ref(nodeToEditForm(props.node || { id: props.nodeId }))
 const errorMsg = ref('')
+const workflowTemplates = ref([])
+
+async function loadWorkflowTemplates() {
+  try {
+    workflowTemplates.value = await listWorkflowTemplates()
+  } catch {
+    workflowTemplates.value = []
+  }
+}
+
+function onExpandTemplateChange() {
+  const tid = String(form.value.expandDefaultLaneTemplateId || '').trim()
+  if (tid && !String(form.value.expandCatalogTemplatesText || '').trim()) {
+    form.value.expandCatalogTemplatesText = tid
+  }
+}
+
+onMounted(() => {
+  loadWorkflowTemplates()
+})
 
 watch(
   () => [props.nodeId, props.node, props.agentOptions],
@@ -239,7 +328,15 @@ function handleSubmit() {
     emit('save', editFormToNode(props.nodeId, form.value, props.node || {}))
     return
   }
-  if (form.value.executorKind === 'expand') {
+  if (form.value.nodeVisualType === 'fork') {
+    emit('save', editFormToNode(props.nodeId, form.value, props.node || { id: props.nodeId }))
+    return
+  }
+  if (form.value.nodeVisualType === 'expand') {
+    if (!String(form.value.expandDefaultLaneTemplateId || '').trim()) {
+      errorMsg.value = '请选择 Lane 模板'
+      return
+    }
     emit('save', editFormToNode(props.nodeId, form.value, props.node || { id: props.nodeId }))
     return
   }
@@ -357,6 +454,14 @@ function handleDelete() {
   color: #80868b;
 }
 .field {
+  margin-bottom: 12px;
+}
+.field-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field-row-2 .field {
   margin-bottom: 12px;
 }
 .field:last-child {

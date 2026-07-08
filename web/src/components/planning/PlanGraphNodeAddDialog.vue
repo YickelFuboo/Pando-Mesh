@@ -70,11 +70,46 @@
               <option value="execute">AI执行类</option>
               <option value="check">AI检查类</option>
               <option value="human">人工卡点类</option>
+              <option value="expand">扩展类</option>
             </select>
           </div>
           <div v-if="nodeForm.nodeVisualType === 'human'" class="hint">
             人工卡点类需配置 pass / reject 出边：pass 继续下游，reject 返工上游。
           </div>
+          <div v-if="nodeForm.nodeVisualType === 'human'" class="field">
+            <label for="pa-human-auto">是否自动执行</label>
+            <select id="pa-human-auto" v-model="nodeForm.humanAutoConfirm">
+              <option :value="false">否</option>
+              <option :value="true">是</option>
+            </select>
+            <p class="hint">选择「是」时等同默认人工确认通过并继续执行</p>
+          </div>
+          <template v-else-if="nodeForm.nodeVisualType === 'expand'">
+            <div class="field">
+              <label for="pa-expand-template">Lane 模板</label>
+              <select
+                id="pa-expand-template"
+                v-model="nodeForm.expandDefaultLaneTemplateId"
+                @change="onExpandTemplateChange"
+              >
+                <option value="">请选择模板</option>
+                <option v-for="tpl in workflowTemplates" :key="tpl.template_id" :value="tpl.template_id">
+                  {{ tpl.name }}（{{ tpl.template_id }}）
+                </option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pa-expand-planner">扩展规划</label>
+              <select id="pa-expand-planner" v-model="nodeForm.expandPlanner">
+                <option value="source">上游产出 / 默认</option>
+                <option value="native_llm">Session LLM 规划</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="pa-expand-merge">汇聚节点名称</label>
+              <input id="pa-expand-merge" v-model="nodeForm.expandMergeLabel" type="text" placeholder="任务汇聚" />
+            </div>
+          </template>
           <template v-else>
           <div v-if="!agentOptions.length" class="hint">
             暂无已注册 Agent，请先在「Agent 注册」中配置。
@@ -136,7 +171,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   END_NODE,
   applyRegisteredAgentToForm,
@@ -149,6 +184,7 @@ import {
   usesRegisteredAgent,
 } from '../../utils/planGraphEdit.js'
 import { resolveGraphNodeLabel } from '../../utils/planGraphState.js'
+import { listWorkflowTemplates } from '../../api/layerApi.js'
 
 const props = defineProps({
   fromNodeId: { type: String, required: true },
@@ -185,6 +221,26 @@ const edgeForm = reactive({
   condition: 'always',
 })
 const errorMsg = ref('')
+const workflowTemplates = ref([])
+
+async function loadWorkflowTemplates() {
+  try {
+    workflowTemplates.value = await listWorkflowTemplates()
+  } catch {
+    workflowTemplates.value = []
+  }
+}
+
+onMounted(() => {
+  loadWorkflowTemplates()
+})
+
+function onExpandTemplateChange() {
+  const tid = String(nodeForm.value.expandDefaultLaneTemplateId || '').trim()
+  if (tid && !String(nodeForm.value.expandCatalogTemplatesText || '').trim()) {
+    nodeForm.value.expandCatalogTemplatesText = tid
+  }
+}
 
 const otherNodeIds = computed(() => (
   (props.graphSpec?.nodes || []).map((n) => n.id).filter((id) => id && id !== props.fromNodeId)
@@ -221,6 +277,7 @@ watch(
 
 function onNodeVisualTypeChange() {
   nodeForm.value = syncFormFromNodeVisualType(nodeForm.value)
+  if (nodeForm.value.nodeVisualType === 'expand' || nodeForm.value.nodeVisualType === 'fork') return
   if (nodeForm.value.nodeVisualType !== 'human' && !nodeForm.value.registeredAgentId && props.agentOptions.length) {
     const defaultAgent = props.agentOptions.find((opt) => opt.value === 'claude_code')
       || props.agentOptions.find((opt) => String(opt.executorTemplate?.kind || '').toLowerCase() === 'cli')
@@ -237,6 +294,13 @@ function validateNodeTab() {
     return false
   }
   if (nodeForm.value.nodeVisualType === 'human') {
+    return true
+  }
+  if (nodeForm.value.nodeVisualType === 'expand') {
+    if (!String(nodeForm.value.expandDefaultLaneTemplateId || '').trim()) {
+      errorMsg.value = '请选择 Lane 模板'
+      return false
+    }
     return true
   }
   if (props.agentOptions.length && !usesRegisteredAgent(nodeForm.value)) {

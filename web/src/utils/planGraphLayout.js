@@ -1,27 +1,48 @@
-const NODE_W = 104
-const NODE_H_MIN = 52
-const H_GAP = 24
-const V_GAP = 28
-const PAD = 10
-const REJECT_BASE_GAP = 4
-const REJECT_LANE_STEP = 8
-const REJECT_LABEL_SPACE = 6
-const LABEL_CHARS_PER_LINE = 7
+const NODE_W = 122
+const NODE_H_MIN = 54
+const H_GAP = 28
+const V_GAP = 24
+const PAD = 12
+const REJECT_BASE_GAP = 3
+const REJECT_LANE_STEP = 5
+const REJECT_LABEL_SPACE = 4
+const LABEL_CHARS_PER_LINE = 8
 const MAX_LABEL_LINES = 3
-const NODE_PAD_TOP = 8
-const NODE_PAD_BOTTOM = 22
+const STANDARD_LABEL_LINES = 2
+const NODE_PAD_TOP = 5
+const NODE_PAD_BOTTOM = 4
+const NODE_ACTION_ZONE = 26
 const STATUS_DOT_R = 4
 const STATUS_DOT_H = STATUS_DOT_R * 2
-const GAP_AFTER_STATUS = 6
+const GAP_AFTER_STATUS = 3
 const LABEL_LINE_H = 12
-const GAP_BEFORE_AGENT = 5
-const AGENT_LINE_H = 10
+const GAP_BEFORE_AGENT = 3
+const AGENT_LINE_H = 9
+const BRANCH_ROW_GAP = 24
+
+const DEFAULT_LAYOUT = Object.freeze({
+  nodeW: NODE_W,
+  nodeHMin: NODE_H_MIN,
+  labelLineH: LABEL_LINE_H,
+})
+
+const COMFORTABLE_LAYOUT = Object.freeze({
+  nodeW: 126,
+  nodeHMin: 58,
+  labelLineH: 13,
+})
+
+let activeLayout = DEFAULT_LAYOUT
+
+function resolveActiveLayout(size = 'default') {
+  return size === 'comfortable' ? COMFORTABLE_LAYOUT : DEFAULT_LAYOUT
+}
 
 import { resolveGraphNodeDisplayAgent, resolveNodeVisualType } from './planGraphState.js'
 import { END_NODE, normalizeNodeRole, START_NODE } from './planGraphEdit.js'
 
-const PHASE_GROUP_PAD = 8
-const PHASE_GROUP_LABEL_H = 18
+const PHASE_GROUP_PAD = 10
+const PHASE_GROUP_LABEL_H = 20
 
 function resolveLayoutPadding(graphSpec) {
   const hasPhases = (graphSpec?.nodes || []).some((n) => String(n?.phase || '').trim())
@@ -67,12 +88,12 @@ function buildPhaseGroups(layoutNodes, graphSpec, bottomExtent = 0) {
   })
 }
 
-
 /**
  * @param {object|null} graphSpec DirectExecGraph: { nodes, edges, entry }
  * @returns {{ width: number, height: number, nodes: object[], edges: object[] }}
  */
-export function buildPlanGraphLayout(graphSpec) {
+export function buildPlanGraphLayout(graphSpec, options = {}) {
+  activeLayout = resolveActiveLayout(options?.size)
   if (!graphSpec || !Array.isArray(graphSpec.nodes) || !graphSpec.nodes.length) {
     return { width: 320, height: 80, nodes: [], edges: [], phaseGroups: [] }
   }
@@ -81,13 +102,15 @@ export function buildPlanGraphLayout(graphSpec) {
     if (!n?.id) continue
     const fullLabel = n.label || n.id
     const labelLines = wrapLabel(fullLabel, LABEL_CHARS_PER_LINE, MAX_LABEL_LINES)
+    const nodeRole = normalizeNodeRole(n.node_role)
+    const visualType = resolveNodeVisualType(n)
     nodeMap.set(n.id, {
       id: n.id,
       labelLines,
       fullLabel,
       agentType: resolveGraphNodeDisplayAgent(graphSpec, n.id),
-      nodeRole: normalizeNodeRole(n.node_role),
-      visualType: resolveNodeVisualType(n),
+      nodeRole,
+      visualType,
       h: nodeHeight(labelLines.length),
     })
   }
@@ -96,6 +119,7 @@ export function buildPlanGraphLayout(graphSpec) {
   )
   const levelEdges = edges.filter((e) => (e.condition || 'always') !== 'reject')
   const levels = assignLevels(graphSpec.entry, levelEdges, nodeMap)
+  const { branchRows, forkRegions } = assignForkBranchRows(levels, levelEdges, nodeMap)
   const byLevel = new Map()
   for (const [id, level] of levels.entries()) {
     if (!byLevel.has(level)) byLevel.set(level, [])
@@ -103,26 +127,24 @@ export function buildPlanGraphLayout(graphSpec) {
   }
   const maxLevel = Math.max(0, ...levels.values())
   const padding = resolveLayoutPadding(graphSpec)
-  let maxColumnHeight = NODE_H_MIN
-  for (let lv = 0; lv <= maxLevel; lv += 1) {
-    const row = byLevel.get(lv) || []
-    const colH = row.reduce((sum, id) => sum + (nodeMap.get(id)?.h || NODE_H_MIN), 0)
-      + Math.max(0, row.length - 1) * V_GAP
-    maxColumnHeight = Math.max(maxColumnHeight, colH)
-  }
-  const width = padding.padLeft + padding.padRight + (maxLevel + 1) * NODE_W + maxLevel * H_GAP
+  const metrics = computeLayoutMetrics(nodeMap, branchRows, forkRegions)
+  const width = padding.padLeft + padding.padRight + (maxLevel + 1) * activeLayout.nodeW + maxLevel * H_GAP
+  const pos = buildGraphPositions({
+    byLevel,
+    maxLevel,
+    nodeMap,
+    levels,
+    branchRows,
+    forkRegions,
+    padding,
+    metrics,
+  })
   const rejectEdges = edges.filter((e) => (e.condition || 'always') === 'reject')
-  const { laneByEdge, laneCount } = assignRejectLanes(rejectEdges)
-  const rejectAreaH = laneCount > 0
-    ? REJECT_BASE_GAP + laneCount * REJECT_LANE_STEP + REJECT_LABEL_SPACE
-    : 0
-  const height = padding.padTop + padding.padBottom + maxColumnHeight + rejectAreaH
-  const pos = buildNodePositions(byLevel, maxLevel, nodeMap, maxColumnHeight, padding)
+  const { laneByEdge } = assignRejectLanes(rejectEdges, pos)
   let maxNodeBottom = 0
   for (const p of pos.values()) {
     maxNodeBottom = Math.max(maxNodeBottom, p.y + p.h)
   }
-  const rejectLaneBaseY = maxNodeBottom + REJECT_BASE_GAP
   const layoutNodes = [...nodeMap.keys()].map((id) => {
     const p = pos.get(id)
     const meta = nodeMap.get(id)
@@ -134,7 +156,7 @@ export function buildPlanGraphLayout(graphSpec) {
       agentType: meta.agentType,
       nodeRole: meta.nodeRole,
       visualType: meta.visualType,
-      labelLineDy: LABEL_LINE_H,
+      labelLineDy: activeLayout.labelLineH,
       ...chrome,
       ...p,
     }
@@ -146,7 +168,7 @@ export function buildPlanGraphLayout(graphSpec) {
     const condition = e.condition || 'always'
     const backward = to.level < from.level || to.x + to.w <= from.x
     const built = backward || condition === 'reject'
-      ? buildRejectPath(from, to, rejectLaneBaseY, laneByEdge.get(edgeKey(e)) ?? 0)
+      ? buildRejectPath(from, to, laneByEdge.get(edgeKey(e)) ?? 0)
       : buildForwardPath(from, to)
     return {
       fromId: e.from,
@@ -166,7 +188,7 @@ export function buildPlanGraphLayout(graphSpec) {
   let rejectBottomY = maxNodeBottom
   for (const edge of layoutEdges) {
     if (edge.condition === 'reject' && edge.labelY != null) {
-      rejectBottomY = Math.max(rejectBottomY, edge.labelY + 6)
+      rejectBottomY = Math.max(rejectBottomY, edge.labelY + 4)
     }
   }
   const phaseGroups = buildPhaseGroups(layoutNodes, graphSpec, rejectBottomY)
@@ -200,8 +222,8 @@ function computeGraphBounds(layoutNodes, layoutEdges, phaseGroups, padding) {
   }
   const topPad = Number.isFinite(minY) ? Math.max(padding.padTop, inset - minY + padding.padTop) : padding.padTop
   return {
-    width: Math.max(padding.padLeft + padding.padRight + NODE_W, maxX + padding.padRight + inset),
-    height: Math.max(topPad + padding.padBottom + NODE_H_MIN, maxY + inset + 4),
+    width: Math.max(padding.padLeft + padding.padRight + activeLayout.nodeW, maxX + padding.padRight + inset),
+    height: Math.max(topPad + padding.padBottom + activeLayout.nodeHMin, maxY + inset + 4),
   }
 }
 
@@ -225,19 +247,32 @@ function buildForwardPath(from, to) {
   }
 }
 
-/** 审查驳回：每条边独立车道，避免多条返工线叠在同一条水平线上 */
-function buildRejectPath(from, to, laneBaseY, laneIndex) {
+function buildRejectPath(from, to, laneIndex) {
   const x1 = from.cx
   const y1 = from.y + from.h
   const x2 = to.cx
   const y2 = to.y + to.h
-  const drop = laneBaseY + laneIndex * REJECT_LANE_STEP
+  const drop = y1 + REJECT_BASE_GAP + laneIndex * REJECT_LANE_STEP
   const labelX = (x1 + x2) / 2
   return {
     backward: true,
     path: `M ${x1} ${y1} L ${x1} ${drop} L ${x2} ${drop} L ${x2} ${y2}`,
     labelX,
-    labelY: drop + 6,
+    labelY: drop + 3,
+  }
+}
+
+function rejectEdgeSpanFromPos(edge, pos) {
+  const from = pos.get(edge.from)
+  const to = pos.get(edge.to)
+  if (!from || !to) return { left: 0, right: 0, dropKey: 0 }
+  const x1 = from.cx
+  const x2 = to.cx
+  const dropKey = Math.round(from.y + from.h)
+  return {
+    left: Math.min(x1, x2),
+    right: Math.max(x1, x2),
+    dropKey,
   }
 }
 
@@ -245,32 +280,179 @@ function edgeKey(e) {
   return `${e.from}->${e.to}:${e.condition || 'always'}`
 }
 
-/** 每条驳回边独占一层车道，避免返工关系叠在一起 */
-function assignRejectLanes(rejectEdges) {
+function assignRejectLanes(rejectEdges, pos) {
   const laneByEdge = new Map()
+  const laneRangesByDrop = new Map()
   const sorted = [...rejectEdges].sort((a, b) => {
+    const spanA = rejectEdgeSpanFromPos(a, pos)
+    const spanB = rejectEdgeSpanFromPos(b, pos)
+    if (spanA.dropKey !== spanB.dropKey) return spanA.dropKey - spanB.dropKey
+    if (spanA.left !== spanB.left) return spanA.left - spanB.left
     const keyA = `${a.from}:${a.to}`
     const keyB = `${b.from}:${b.to}`
     return keyA.localeCompare(keyB, 'zh-CN')
   })
-  sorted.forEach((e, i) => {
-    laneByEdge.set(edgeKey(e), i)
-  })
-  return { laneByEdge, laneCount: rejectEdges.length }
+  for (const edge of sorted) {
+    const span = rejectEdgeSpanFromPos(edge, pos)
+    if (!laneRangesByDrop.has(span.dropKey)) {
+      laneRangesByDrop.set(span.dropKey, [])
+    }
+    const laneRanges = laneRangesByDrop.get(span.dropKey)
+    let laneIndex = laneRanges.findIndex(
+      (range) => range.right <= span.left || range.left >= span.right,
+    )
+    if (laneIndex < 0) {
+      laneIndex = laneRanges.length
+      laneRanges.push({ left: span.left, right: span.right })
+    } else {
+      laneRanges[laneIndex] = {
+        left: Math.min(laneRanges[laneIndex].left, span.left),
+        right: Math.max(laneRanges[laneIndex].right, span.right),
+      }
+    }
+    laneByEdge.set(edgeKey(edge), laneIndex)
+  }
+  return { laneByEdge }
 }
 
-function buildNodePositions(byLevel, maxLevel, nodeMap, maxColumnHeight, padding) {
+function nodeLayoutLines(lineCount) {
+  const lines = Math.max(1, Math.min(lineCount, MAX_LABEL_LINES))
+  if (lines <= STANDARD_LABEL_LINES) return STANDARD_LABEL_LINES
+  return lines
+}
+
+function nodeHeight(lineCount) {
+  const layoutLines = nodeLayoutLines(lineCount)
+  return Math.max(
+    activeLayout.nodeHMin,
+    NODE_PAD_TOP + STATUS_DOT_H + GAP_AFTER_STATUS
+      + layoutLines * activeLayout.labelLineH + GAP_BEFORE_AGENT + AGENT_LINE_H
+      + NODE_ACTION_ZONE + NODE_PAD_BOTTOM,
+  )
+}
+
+function buildNodeChrome(p, lineCount) {
+  const displayLines = Math.max(1, Math.min(lineCount, MAX_LABEL_LINES))
+  const layoutLines = nodeLayoutLines(lineCount)
+  const lineH = activeLayout.labelLineH
+  const dotCy = p.y + NODE_PAD_TOP + STATUS_DOT_R
+  const labelTop = p.y + NODE_PAD_TOP + STATUS_DOT_H + GAP_AFTER_STATUS
+  const labelBlockH = layoutLines * lineH
+  const displayBlockH = displayLines * lineH
+  const labelYOffset = Math.max(0, (labelBlockH - displayBlockH) / 2)
+  const textOffset = 5
+  return {
+    statusDot: { cx: p.x + p.w / 2, cy: dotCy, r: STATUS_DOT_R },
+    labelY: labelTop + textOffset + labelYOffset,
+    labelLineDy: lineH,
+    agentY: labelTop + labelBlockH + GAP_BEFORE_AGENT + textOffset,
+  }
+}
+
+function computeLayoutMetrics(nodeMap, branchRows, forkRegions) {
+  let mainBandHeight = activeLayout.nodeHMin
+  for (const [id, meta] of nodeMap) {
+    if (branchRows.has(id)) continue
+    mainBandHeight = Math.max(mainBandHeight, meta?.h || activeLayout.nodeHMin)
+  }
+  const branchRowCount = branchRows.size > 0
+    ? Math.max(...branchRows.values()) + 1
+    : 0
+  const branchRowHeights = branchRowCount > 0
+    ? Array.from({ length: branchRowCount }, () => activeLayout.nodeHMin)
+    : []
+  if (branchRowCount > 0) {
+    for (const [id, rowIndex] of branchRows) {
+      branchRowHeights[rowIndex] = Math.max(branchRowHeights[rowIndex], nodeMap.get(id)?.h || activeLayout.nodeHMin)
+    }
+  }
+  const branchBandHeight = branchRowCount > 0
+    ? branchRowHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, branchRowCount - 1) * BRANCH_ROW_GAP
+    : 0
+  const extraBranchBelow = branchRowCount > 1
+    ? branchRowHeights.slice(1).reduce((sum, h) => sum + h, 0) + (branchRowCount - 1) * BRANCH_ROW_GAP
+    : 0
+  const totalHeight = mainBandHeight + extraBranchBelow
+  return {
+    mainBandHeight,
+    branchRowHeights,
+    branchBandHeight,
+    branchRowCount,
+    totalHeight,
+    forkRegions,
+  }
+}
+
+function resolveBranchRowTops(mainFlowTop, mainBandHeight, branchRowHeights) {
+  if (!branchRowHeights.length) return []
+  const tops = []
+  tops[0] = mainFlowTop + (mainBandHeight - branchRowHeights[0]) / 2
+  for (let i = 1; i < branchRowHeights.length; i += 1) {
+    tops[i] = tops[i - 1] + branchRowHeights[i - 1] + BRANCH_ROW_GAP
+  }
+  return tops
+}
+
+function buildGraphPositions({
+  byLevel,
+  maxLevel,
+  nodeMap,
+  levels,
+  branchRows,
+  forkRegions,
+  padding,
+  metrics,
+}) {
   const pos = new Map()
+  const mainFlowTop = padding.padTop
+  const mainRowCy = mainFlowTop + metrics.mainBandHeight / 2
+  const branchRowTops = metrics.branchRowCount > 0
+    ? resolveBranchRowTops(mainFlowTop, metrics.mainBandHeight, metrics.branchRowHeights)
+    : []
+
   for (let lv = 0; lv <= maxLevel; lv += 1) {
-    const row = byLevel.get(lv) || []
-    const colH = row.reduce((sum, id) => sum + (nodeMap.get(id)?.h || NODE_H_MIN), 0)
-      + Math.max(0, row.length - 1) * V_GAP
-    let y = padding.padTop + (maxColumnHeight - colH) / 2
-    row.forEach((id) => {
+    const row = (byLevel.get(lv) || []).slice().sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    const branchNodes = row.filter((id) => branchRows.has(id))
+    const spineNodes = row.filter((id) => !branchRows.has(id))
+
+    for (const id of branchNodes) {
       const meta = nodeMap.get(id)
-      const h = meta?.h || NODE_H_MIN
-      const x = padding.padLeft + lv * (NODE_W + H_GAP)
-      pos.set(id, { x, y, w: NODE_W, h, cx: x + NODE_W / 2, cy: y + h / 2, level: lv })
+      const h = meta?.h || activeLayout.nodeHMin
+      const rowIndex = branchRows.get(id) ?? 0
+      const rowH = metrics.branchRowHeights[rowIndex] || activeLayout.nodeHMin
+      const x = padding.padLeft + lv * (activeLayout.nodeW + H_GAP)
+      const y = (branchRowTops[rowIndex] ?? mainFlowTop) + (rowH - h) / 2
+      pos.set(id, {
+        x,
+        y,
+        w: activeLayout.nodeW,
+        h,
+        cx: x + activeLayout.nodeW / 2,
+        cy: y + h / 2,
+        level: levels.get(id) ?? lv,
+      })
+    }
+
+    if (!spineNodes.length) continue
+
+    const stackH = spineNodes.reduce((sum, id) => sum + (nodeMap.get(id)?.h || activeLayout.nodeHMin), 0)
+      + Math.max(0, spineNodes.length - 1) * V_GAP
+    let y = mainRowCy - stackH / 2
+
+    spineNodes.forEach((id) => {
+      const meta = nodeMap.get(id)
+      const h = meta?.h || activeLayout.nodeHMin
+      const x = padding.padLeft + lv * (activeLayout.nodeW + H_GAP)
+      const nodeY = mainRowCy - h / 2
+      pos.set(id, {
+        x,
+        y: nodeY,
+        w: activeLayout.nodeW,
+        h,
+        cx: x + activeLayout.nodeW / 2,
+        cy: nodeY + h / 2,
+        level: levels.get(id) ?? lv,
+      })
       y += h + V_GAP
     })
   }
@@ -303,25 +485,125 @@ function assignLevels(entry, edges, nodeMap) {
   return levels
 }
 
-function nodeHeight(lineCount) {
-  const lines = Math.max(1, lineCount)
-  return Math.max(
-    NODE_H_MIN,
-    NODE_PAD_TOP + STATUS_DOT_H + GAP_AFTER_STATUS
-      + lines * LABEL_LINE_H + GAP_BEFORE_AGENT + AGENT_LINE_H + NODE_PAD_BOTTOM,
-  )
+function outgoingAlwaysTargets(id, edges) {
+  return edges
+    .filter((e) => e.from === id && (e.condition || 'always') !== 'reject')
+    .map((e) => e.to)
 }
 
-function buildNodeChrome(p, lineCount) {
-  const lines = Math.max(1, lineCount)
-  const dotCy = p.y + NODE_PAD_TOP + STATUS_DOT_R
-  const labelTop = p.y + NODE_PAD_TOP + STATUS_DOT_H + GAP_AFTER_STATUS
-  return {
-    statusDot: { cx: p.x + p.w / 2, cy: dotCy, r: STATUS_DOT_R },
-    labelY: labelTop + 8,
-    labelLineDy: LABEL_LINE_H,
-    agentY: labelTop + lines * LABEL_LINE_H + GAP_BEFORE_AGENT + 5,
+function isForkSplitNode(id, edges, nodeMap) {
+  const meta = nodeMap.get(id)
+  if (meta?.visualType !== 'fork_gate') return false
+  const ins = edges.filter((e) => e.to === id && (e.condition || 'always') !== 'reject')
+  const outs = outgoingAlwaysTargets(id, edges)
+  return ins.length === 1 && outs.length > 1
+}
+
+function findDirectMergeNode(children, edges) {
+  const counts = new Map()
+  for (const cid of children) {
+    for (const to of outgoingAlwaysTargets(cid, edges)) {
+      counts.set(to, (counts.get(to) || 0) + 1)
+    }
   }
+  for (const [mid, count] of counts) {
+    if (count === children.length) return mid
+  }
+  return null
+}
+
+function isForkMergeNode(id, edges, nodeMap) {
+  const meta = nodeMap.get(id)
+  if (meta?.visualType !== 'fork_gate') return false
+  const ins = edges.filter((e) => e.to === id && (e.condition || 'always') !== 'reject')
+  const outs = outgoingAlwaysTargets(id, edges)
+  return ins.length > 1 && outs.length === 1
+}
+
+function collectReachable(startId, edges, nodeMap) {
+  const seen = new Set()
+  const queue = [startId]
+  while (queue.length) {
+    const id = queue.shift()
+    if (seen.has(id)) continue
+    seen.add(id)
+    for (const to of outgoingAlwaysTargets(id, edges)) {
+      if (nodeMap.has(to)) queue.push(to)
+    }
+  }
+  return seen
+}
+
+function findBranchMergeNode(children, edges, nodeMap) {
+  const direct = findDirectMergeNode(children, edges)
+  if (direct) return direct
+  if (!children.length) return null
+  const reachableSets = children.map((cid) => collectReachable(cid, edges, nodeMap))
+  let common = [...reachableSets[0]]
+  for (let i = 1; i < reachableSets.length; i += 1) {
+    const set = reachableSets[i]
+    common = common.filter((id) => set.has(id))
+  }
+  const mergeCandidates = common
+    .filter((id) => isForkMergeNode(id, edges, nodeMap))
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  return mergeCandidates[0] || null
+}
+
+function collectBranchDescendants(startId, mergeId, edges, nodeMap) {
+  const into = new Set()
+  const queue = [startId]
+  while (queue.length) {
+    const id = queue.shift()
+    if (into.has(id)) continue
+    into.add(id)
+    for (const to of outgoingAlwaysTargets(id, edges)) {
+      if (to === mergeId || !nodeMap.has(to)) continue
+      queue.push(to)
+    }
+  }
+  return into
+}
+
+/** fork 分裂：各分支占独立行，分支内仍按拓扑层级横向展开；不修改 level，仅分配 branchRows */
+function assignForkBranchRows(levels, edges, nodeMap) {
+  const branchRows = new Map()
+  const forkRegions = []
+  const forkIds = [...nodeMap.keys()]
+    .filter((id) => isForkSplitNode(id, edges, nodeMap))
+    .sort((a, b) => {
+      const la = levels.get(a) ?? 0
+      const lb = levels.get(b) ?? 0
+      if (la !== lb) return la - lb
+      return a.localeCompare(b, 'zh-CN')
+    })
+
+  for (const forkId of forkIds) {
+    const children = outgoingAlwaysTargets(forkId, edges)
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    if (children.length <= 1) continue
+
+    const mergeId = findBranchMergeNode(children, edges, nodeMap)
+    const regionIds = new Set([forkId])
+    if (mergeId) regionIds.add(mergeId)
+
+    children.forEach((cid, branchIndex) => {
+      branchRows.set(cid, branchIndex)
+      regionIds.add(cid)
+      for (const did of collectBranchDescendants(cid, mergeId, edges, nodeMap)) {
+        branchRows.set(did, branchIndex)
+        regionIds.add(did)
+      }
+    })
+
+    forkRegions.push({
+      forkId,
+      mergeId,
+      regionIds,
+      branchCount: children.length,
+    })
+  }
+  return { branchRows, forkRegions }
 }
 
 export function wrapLabel(text, maxCharsPerLine = LABEL_CHARS_PER_LINE, maxLines = MAX_LABEL_LINES) {

@@ -31,16 +31,25 @@ def sample_graph():
 @pytest.mark.asyncio
 async def test_template_crud(tmp_path, sample_graph):
     store = WorkflowTemplateStore(root_dir=str(tmp_path / "data"))
-    created = await store.create(name="标准流程", description="测试", graph=sample_graph, judge_mode="auto")
+    created = await store.create(
+        name="标准流程",
+        description="测试",
+        graph=sample_graph,
+        judge_mode="auto",
+        category="编码实现",
+    )
     assert created.template_id.startswith("tpl_")
     assert created.node_count() == 1
+    assert created.category == "编码实现"
     loaded = await store.get(created.template_id)
     assert loaded is not None
     assert loaded.name == "标准流程"
+    assert loaded.category == "编码实现"
     items = await store.list_all()
     assert len(items) == 1
-    updated = await store.update(created.template_id, name="更新流程")
+    updated = await store.update(created.template_id, name="更新流程", category="需求分析")
     assert updated.name == "更新流程"
+    assert updated.category == "需求分析"
     assert await store.delete(created.template_id)
     assert await store.get(created.template_id) is None
 
@@ -112,6 +121,29 @@ async def test_init_from_template_service(tmp_path, sample_graph):
     graph = updated.plan_state.resolve_graph()
     assert graph is not None
     assert len(graph.nodes) == 2
+
+
+@pytest.mark.asyncio
+async def test_init_from_template_clears_awaiting_pending(tmp_path, sample_graph):
+    wf_store = WorkflowStore(root_dir=str(tmp_path / "data"))
+    tpl_store = WorkflowTemplateStore(root_dir=str(tmp_path / "data"))
+    service = WorkflowService(store=wf_store, template_store=tpl_store)
+    template = await tpl_store.create(name="标准流程", description="", graph=sample_graph, judge_mode="auto")
+    record = await wf_store.create(
+        name="req-pending",
+        plan_mode="template",
+        template_id=template.template_id,
+        graph_spec=sample_graph,
+    )
+    record.plan_state.phase = PlanGraphPhase.AWAITING_HUMAN
+    record.plan_state.pending_gate = {"node_id": "step_a", "label": "确认", "summary": "待确认"}
+    record.plan_state.node_outputs = {"step_a": "partial"}
+    await wf_store.save(record)
+    updated = await service.init_from_template(record.workflow_id, template.template_id)
+    assert updated.plan_state.phase == PlanGraphPhase.IDLE
+    assert updated.plan_state.pending_gate == {}
+    assert updated.plan_state.pending_expand == {}
+    assert updated.plan_state.node_outputs == {}
 
 
 @pytest.mark.asyncio

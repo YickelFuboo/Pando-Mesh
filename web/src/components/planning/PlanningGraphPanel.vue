@@ -17,6 +17,8 @@
           <span class="legend-item"><i class="legend-shape ai-execute" />AI执行类</span>
           <span class="legend-item"><i class="legend-shape ai-check" />AI检查类</span>
           <span class="legend-item"><i class="legend-shape human-gate" />人工卡点类</span>
+          <span class="legend-item"><i class="legend-shape expand-gate" />扩展类</span>
+          <span class="legend-item"><i class="legend-shape fork-gate" />分支汇聚类</span>
         </span>
         <span class="legend-sep" aria-hidden="true" />
         <span class="legend-group" aria-label="节点状态">
@@ -26,7 +28,7 @@
         </span>
         <template v-if="editable">
           <span class="legend-sep" aria-hidden="true" />
-          <span class="plan-graph-edit-hint">点击节点选中 · 下方可修正重跑 · 连线编辑 · ▶ 执行 · + 添加</span>
+          <span class="plan-graph-edit-hint">{{ editModeHint }}</span>
           <button
             v-if="topologySelectedNodeId"
             type="button"
@@ -86,17 +88,17 @@
           :preserveAspectRatio="svgPreserveAspectRatio"
         >
         <defs>
-          <marker id="plan-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L7,3 L0,6 Z" fill="#7a8699" />
+          <marker id="plan-arrow" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#7a8699" />
           </marker>
-          <marker id="plan-arrow-pass" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L7,3 L0,6 Z" fill="#34a853" />
+          <marker id="plan-arrow-pass" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#34a853" />
           </marker>
-          <marker id="plan-arrow-reject" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L7,3 L0,6 Z" fill="#ea4335" />
+          <marker id="plan-arrow-reject" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#ea4335" />
           </marker>
-          <marker id="plan-arrow-reject-fired" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-            <path d="M0,0 L7,3 L0,6 Z" fill="#c5221f" />
+          <marker id="plan-arrow-reject-fired" markerWidth="9" markerHeight="9" refX="8" refY="3.5" orient="auto">
+            <path d="M0,0 L8,3.5 L0,7 Z" fill="#c5221f" />
           </marker>
         </defs>
         <g v-for="(group, gi) in layout.phaseGroups" :key="'phase-' + gi" class="plan-graph-phase-group">
@@ -149,13 +151,24 @@
           <title>{{ nodeTooltip(node) }}</title>
           <polygon
             v-if="node.visualType === 'human_gate'"
-            :points="nodeHexPoints(node)"
-            class="plan-graph-node-shape plan-graph-node-hex"
+            :points="nodeDiamondPoints(node)"
+            class="plan-graph-node-shape plan-graph-node-diamond"
           />
           <polygon
             v-else-if="node.visualType === 'ai_check'"
-            :points="nodeDiamondPoints(node)"
-            class="plan-graph-node-shape plan-graph-node-diamond"
+            :points="nodeHexPoints(node)"
+            class="plan-graph-node-shape plan-graph-node-hex"
+          />
+          <template v-else-if="node.visualType === 'expand_gate'">
+            <polygon
+              :points="nodeExpandTrapezoidPoints(node)"
+              class="plan-graph-node-shape plan-graph-node-trapezoid plan-graph-node-gate"
+            />
+          </template>
+          <polygon
+            v-else-if="node.visualType === 'fork_gate'"
+            :points="nodeForkTrapezoidPoints(node)"
+            class="plan-graph-node-shape plan-graph-node-trapezoid plan-graph-node-gate"
           />
           <rect
             v-else
@@ -207,10 +220,16 @@
           </text>
           <text :x="node.cx" :y="node.agentY" class="plan-graph-node-agent">{{ node.agentType }}</text>
         </g>
-        <g v-if="editable" v-for="node in layout.nodes" :key="'act-' + node.id" class="plan-graph-node-actions">
+        <template v-if="editable || showExecuteButton">
           <g
+            v-for="node in layout.nodes"
+            :key="'actions-' + node.id"
+            class="plan-graph-node-actions"
+          >
+          <g
+            v-if="editable"
             class="plan-graph-node-edit"
-            :transform="nodeActionTransform(node)"
+            :transform="nodeActionTransform(node, 'edit')"
             @mousedown.stop.prevent
             @click.stop="onEditNodeClick(node.id)"
           >
@@ -218,14 +237,15 @@
             <rect :width="ACTION_BTN_SIZE" :height="ACTION_BTN_SIZE" fill="transparent" />
             <path
               class="plan-graph-action-icon plan-graph-edit-btn-icon"
-              transform="translate(2, 2) scale(0.62)"
+              :transform="ACTION_ICON_TRANSFORM"
               d="M20.71,7.04C21.1,6.65 21.1,6 20.71,5.63L18.37,3.29C18,2.9 17.35,2.9 16.96,3.29L15.12,5.12L18.87,8.87M3,17.25V21H6.75L17.81,9.93L14.06,6.18L3,17.25Z"
             />
           </g>
           <g
+            v-if="showExecuteButton"
             class="plan-graph-node-run"
             :class="{ disabled: executionDisabled }"
-            :transform="nodeActionTransform(node, 'center')"
+            :transform="nodeActionTransform(node, 'run')"
             @mousedown.stop.prevent
             @click.stop="onExecuteNodeClick(node.id)"
           >
@@ -233,13 +253,14 @@
             <rect :width="ACTION_BTN_SIZE" :height="ACTION_BTN_SIZE" fill="transparent" />
             <path
               class="plan-graph-action-icon plan-graph-run-btn-icon"
-              transform="translate(3, 3) scale(1.2)"
-              d="M7 5.5v7l5.5-3.5Z"
+              :transform="ACTION_ICON_TRANSFORM"
+              d="M8 5v14l11-7z"
             />
           </g>
           <g
+            v-if="editable"
             class="plan-graph-node-add"
-            :transform="nodeActionTransform(node, 'right')"
+            :transform="nodeActionTransform(node, 'add')"
             @mousedown.stop.prevent
             @click.stop="onOpenAddMenu(node.id)"
           >
@@ -247,11 +268,12 @@
             <rect :width="ACTION_BTN_SIZE" :height="ACTION_BTN_SIZE" fill="transparent" />
             <path
               class="plan-graph-action-icon plan-graph-add-btn-icon"
-              transform="translate(2, 2) scale(1.15)"
-              d="M9 5v8M4.5 9.5h9"
+              :transform="ACTION_ICON_TRANSFORM"
+              d="M10 6 H14 V10 H18 V14 H14 V18 H10 V14 H6 V10 H10 V6 Z"
             />
           </g>
-        </g>
+          </g>
+        </template>
       </svg>
       </div>
     </div>
@@ -285,6 +307,8 @@ const props = defineProps({
   panelHeight: { type: Number, default: null },
   fillHeight: { type: Boolean, default: false },
   editable: { type: Boolean, default: true },
+  layoutSize: { type: String, default: 'default' },
+  showExecuteButton: { type: Boolean, default: true },
   showSettingsButton: { type: Boolean, default: false },
 })
 
@@ -299,22 +323,58 @@ const emit = defineEmits([
   'open-settings',
 ])
 
-const ACTION_BTN_SIZE = 24
-const ACTION_INSET_X = 5
-const ACTION_INSET_BOTTOM = 4
+const ACTION_BTN_SIZE = 20
+const ACTION_BTN_GAP = 4
+const ACTION_ICON_SIZE = 14
+const ACTION_ICON_OFFSET = (ACTION_BTN_SIZE - ACTION_ICON_SIZE) / 2
+const ACTION_ICON_SCALE = ACTION_ICON_SIZE / 24
+const ACTION_ICON_TRANSFORM = `translate(${ACTION_ICON_OFFSET}, ${ACTION_ICON_OFFSET}) scale(${ACTION_ICON_SCALE})`
+const ACTION_INSET_BOTTOM = 5
 
-function nodeActionTransform(node, corner = 'left') {
-  const xRight = node.x + node.w - ACTION_INSET_X - ACTION_BTN_SIZE
-  const xLeft = node.x + ACTION_INSET_X
-  const xCenter = node.x + (node.w - ACTION_BTN_SIZE) / 2
-  const yBottom = node.y + node.h - ACTION_INSET_BOTTOM - ACTION_BTN_SIZE
-  if (corner === 'right') return `translate(${xRight}, ${yBottom})`
-  if (corner === 'center') return `translate(${xCenter}, ${yBottom})`
-  return `translate(${xLeft}, ${yBottom})`
+function actionRowY(node) {
+  const base = node.y + node.h - ACTION_INSET_BOTTOM - ACTION_BTN_SIZE
+  const type = node.visualType || 'ai_execute'
+  if (type === 'ai_check' || type === 'human_gate') return base - 4
+  return base
 }
 
-const layout = computed(() => buildPlanGraphLayout(props.graphSpec))
+function actionSlotIndex(kind) {
+  let idx = 0
+  if (kind === 'edit') return 0
+  if (kind === 'run') {
+    return props.editable ? 1 : 0
+  }
+  return (props.editable ? 1 : 0) + (props.showExecuteButton ? 1 : 0)
+}
 
+function actionSlotCount() {
+  let count = 0
+  if (props.editable) count += 1
+  if (props.showExecuteButton) count += 1
+  if (props.editable) count += 1
+  return count
+}
+
+function nodeActionTransform(node, kind) {
+  const yBottom = actionRowY(node)
+  const slotCount = actionSlotCount()
+  const slotIndex = actionSlotIndex(kind)
+  const groupW = slotCount * ACTION_BTN_SIZE + Math.max(0, slotCount - 1) * ACTION_BTN_GAP
+  const startX = node.x + node.w / 2 - groupW / 2
+  const x = startX + slotIndex * (ACTION_BTN_SIZE + ACTION_BTN_GAP)
+  return `translate(${x}, ${yBottom})`
+}
+
+const editModeHint = computed(() => (
+  props.showExecuteButton
+    ? '点击节点选中 · 下方可修正重跑 · 连线编辑 · ▶ 执行 · + 添加'
+    : '点击节点选中 · 连线编辑 · 编辑 · + 添加'
+))
+
+const layout = computed(() => buildPlanGraphLayout(
+  props.graphSpec,
+  { size: props.layoutSize },
+))
 const viewportRef = ref(null)
 let viewportObserver = null
 
@@ -449,12 +509,26 @@ function nodeHexPoints(node) {
   return `${x + w * 0.25},${y} ${x + w * 0.75},${y} ${x + w},${y + h / 2} ${x + w * 0.75},${y + h} ${x + w * 0.25},${y + h} ${x},${y + h / 2}`
 }
 
+function nodeExpandTrapezoidPoints(node) {
+  const { x, y, w, h } = node
+  const inset = w * 0.14
+  return `${x + inset},${y} ${x + w - inset},${y} ${x + w},${y + h} ${x},${y + h}`
+}
+
+function nodeForkTrapezoidPoints(node) {
+  const { x, y, w, h } = node
+  const inset = w * 0.14
+  return `${x},${y} ${x + w},${y} ${x + w - inset},${y + h} ${x + inset},${y + h}`
+}
+
 function nodeVisualClass(node) {
   const type = node.visualType || 'ai_execute'
   return {
     'role-ai-execute': type === 'ai_execute',
     'role-ai-check': type === 'ai_check',
     'role-human-gate': type === 'human_gate',
+    'role-expand-gate': type === 'expand_gate',
+    'role-fork-gate': type === 'fork_gate',
   }
 }
 
@@ -487,7 +561,11 @@ function executeNodeTitle(nodeId) {
 }
 
 function onExecuteNodeClick(nodeId) {
-  if (!nodeId || props.executionDisabled) return
+  if (!nodeId) return
+  if (props.executionDisabled) {
+    window.alert('工作流正在执行中，请稍候')
+    return
+  }
   emit('execute-node', nodeId)
 }
 
@@ -662,13 +740,13 @@ function edgeMarker(edge) {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 12px;
   color: #5f6368;
 }
 .legend-sep {
   flex-shrink: 0;
   width: 1px;
-  height: 14px;
+  height: 16px;
   background: rgba(0, 0, 0, 0.08);
 }
 .legend-item {
@@ -680,7 +758,7 @@ function edgeMarker(edge) {
 }
 .legend-line {
   display: inline-block;
-  width: 18px;
+  width: 20px;
   height: 0;
   border-top-width: 2px;
   border-top-style: solid;
@@ -698,8 +776,8 @@ function edgeMarker(edge) {
 }
 .legend-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 .legend-dot.pending { background: #9aa0a6; }
@@ -767,7 +845,7 @@ function edgeMarker(edge) {
   paint-order: stroke fill;
 }
 .plan-graph-phase-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   fill: #1a73e8;
   pointer-events: none;
@@ -778,7 +856,7 @@ function edgeMarker(edge) {
 .plan-graph-edge {
   fill: none;
   stroke: #9aa0a6;
-  stroke-width: 1.2;
+  stroke-width: 1.4;
 }
 .plan-graph-edge-hit {
   fill: none;
@@ -808,7 +886,7 @@ function edgeMarker(edge) {
   opacity: 1;
 }
 .plan-graph-edge-label {
-  font-size: 8px;
+  font-size: 10px;
   fill: #5f6368;
   text-anchor: middle;
 }
@@ -858,8 +936,8 @@ function edgeMarker(edge) {
 }
 .legend-shape {
   display: inline-block;
-  width: 14px;
-  height: 10px;
+  width: 16px;
+  height: 12px;
   margin-right: 4px;
   vertical-align: middle;
 }
@@ -871,19 +949,42 @@ function edgeMarker(edge) {
 }
 .legend-shape.ai-check,
 .legend-shape.check {
-  width: 12px;
+  width: 16px;
   height: 12px;
   border: 1.5px solid #dadce0;
   background: #fff;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  transform: none;
+  border-radius: 0;
+}
+.legend-shape.human-gate {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid #dadce0;
+  background: #fff;
+  clip-path: none;
   transform: rotate(45deg);
   border-radius: 1px;
 }
-.legend-shape.human-gate {
-  width: 14px;
-  height: 10px;
+.legend-shape.expand-gate {
   border: 1.5px solid #dadce0;
   background: #fff;
-  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  clip-path: polygon(14% 0%, 86% 0%, 100% 100%, 0% 100%);
+}
+.legend-shape.fork-gate {
+  border: 1.5px solid #00897b;
+  background: #fff;
+  clip-path: polygon(0% 0%, 100% 0%, 86% 100%, 14% 100%);
+}
+.plan-graph-node-wrap.role-fork-gate .plan-graph-node-gate {
+  stroke: #00897b;
+}
+.plan-graph-node-wrap.role-fork-gate.running .plan-graph-node-gate {
+  stroke: #f9ab00;
+}
+.plan-graph-node-wrap.role-fork-gate.done .plan-graph-node-gate,
+.plan-graph-node-wrap.role-fork-gate.executed .plan-graph-node-gate {
+  stroke: #34a853;
 }
 .plan-graph-retry-badge {
   fill: #fce8e6;
@@ -891,7 +992,7 @@ function edgeMarker(edge) {
   stroke-width: 0.8;
 }
 .plan-graph-retry-text {
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
   fill: #c5221f;
   text-anchor: middle;
@@ -921,13 +1022,10 @@ function edgeMarker(edge) {
   fill: #1a73e8;
 }
 .plan-graph-add-btn-icon {
-  fill: none;
-  stroke: #5f6368;
-  stroke-width: 2;
-  stroke-linecap: round;
+  fill: #5f6368;
 }
 .plan-graph-node-add:hover .plan-graph-add-btn-icon {
-  stroke: #137333;
+  fill: #137333;
 }
 .plan-graph-run-btn-icon {
   fill: #81c995;
@@ -943,14 +1041,14 @@ function edgeMarker(edge) {
   50% { opacity: 0.55; }
 }
 .plan-graph-node-label {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
   fill: #202124;
   text-anchor: middle;
   pointer-events: none;
 }
 .plan-graph-node-agent {
-  font-size: 8px;
+  font-size: 10px;
   fill: #80868b;
   text-anchor: middle;
   dominant-baseline: auto;

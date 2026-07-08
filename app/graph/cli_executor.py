@@ -551,10 +551,12 @@ class CliNodeExecutor:
     def _should_deliver_task_via_stdin(argv: List[str], task: str, input_mode: str) -> bool:
         if input_mode == "stdin":
             return True
-        if not task:
-            return False
-        if CliNodeExecutor._prompt_flag_indexes(argv) and (
-            "\n" in task or task.lstrip().startswith("#")
+        # claude -p 在 Windows 上把 argv 中的多行 prompt 截断为第一行；改经 stdin 传递完整任务。
+        if (
+            input_mode == "arg"
+            and task
+            and "\n" in task
+            and CliNodeExecutor._prompt_flag_indexes(argv)
         ):
             return True
         return False

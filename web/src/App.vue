@@ -1,8 +1,11 @@
 <template>
   <div
     class="app-shell"
-    :class="{ 'full-width-mode': mainTab !== 'workflow' }"
-    :style="mainTab === 'workflow' ? { '--sidebar-width': `${sidebarWidth}px` } : undefined"
+    :class="{
+      'full-width-mode': mainTab !== 'workflow',
+      'sidebar-collapsed': mainTab === 'workflow' && sidebarCollapsed,
+    }"
+    :style="mainTab === 'workflow' && !sidebarCollapsed ? { '--sidebar-width': `${sidebarWidth}px` } : undefined"
   >
     <header class="app-header">
       <div class="header-start">
@@ -108,9 +111,10 @@
           v-if="workflow && executing"
           type="button"
           class="btn btn-danger"
+          :disabled="reqAbortId === workflowId"
           @click="onAbort"
         >
-          中止
+          {{ reqAbortId === workflowId ? '中止中…' : '中止' }}
         </button>
         </template>
         <button
@@ -218,14 +222,24 @@
               <span class="req-name">{{ item.name }}</span>
               <span v-if="item.summary" class="req-summary">{{ item.summary }}</span>
             </div>
-            <div class="req-badges">
-              <div v-if="item.has_session || (useWorkflow && defaultTemplateId)" class="req-actions">
+            <div class="req-badges" @click.stop>
+              <div v-if="item.running || item.has_session || (useWorkflow && defaultTemplateId)" class="req-actions">
                 <button
-                  v-if="item.has_session && !item.running"
+                  v-if="item.running"
+                  type="button"
+                  class="btn-stop"
+                  :disabled="!item.workflow_id || reqAbortId === item.workflow_id || batchBusy"
+                  title="停止执行"
+                  @click.stop="stopRequirementWorkflow(item)"
+                >
+                  {{ reqAbortId === item.workflow_id ? '…' : '停止' }}
+                </button>
+                <button
+                  v-else-if="item.has_session"
                   type="button"
                   class="btn-play"
-                  :disabled="reqStartId === item.requirement_id || reqOpeningId === item.requirement_id || batchBusy || (item.workflow_id === workflowId && (executing || awaitingPending))"
-                  title="启动本需求工作流"
+                  :disabled="reqStartId === item.requirement_id || reqOpeningId === item.requirement_id || batchBusy || item.running || requirementAwaitingPending(item) || (item.workflow_id === workflowId && executing)"
+                  :title="requirementStartTitle(item)"
                   @click.stop="startRequirementWorkflow(item)"
                 >
                   <svg class="play-icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -233,7 +247,7 @@
                   </svg>
                 </button>
                 <button
-                  v-if="useWorkflow && defaultTemplateId"
+                  v-if="useWorkflow && defaultTemplateId && !item.running"
                   type="button"
                   class="btn btn-init"
                   :disabled="reqInitId === item.requirement_id || batchBusy"
@@ -243,6 +257,7 @@
                 </button>
               </div>
               <span v-if="item.running" class="wf-badge">执行中</span>
+              <span v-else-if="requirementAwaitingPending(item)" class="req-tag req-tag-pending">待确认</span>
               <span v-else-if="item.has_session" class="req-tag">Session</span>
             </div>
           </li>
@@ -257,11 +272,26 @@
     <div
       v-if="mainTab === 'workflow'"
       class="sidebar-resize-handle"
-      :class="{ dragging: sidebarResizing }"
-      title="拖动调整侧栏宽度"
-      @mousedown.prevent="startResizeSidebar"
+      :class="{ dragging: sidebarResizing && !sidebarCollapsed, collapsed: sidebarCollapsed }"
+      :title="sidebarCollapsed ? '展开需求列表' : '拖动调整侧栏宽度'"
+      @mousedown.prevent="onSidebarHandleMouseDown"
     >
-      <span class="sidebar-resize-handle-bar" aria-hidden="true" />
+      <button
+        type="button"
+        class="sidebar-collapse-btn"
+        :title="sidebarCollapsed ? '展开需求列表' : '收起需求列表'"
+        :aria-label="sidebarCollapsed ? '展开需求列表' : '收起需求列表'"
+        @click.stop="toggleSidebarCollapsed"
+        @mousedown.stop
+      >
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+          <path
+            fill="currentColor"
+            :d="sidebarCollapsed ? 'M6 3l5 5-5 5V3z' : 'M10 3L5 8l5 5V3z'"
+          />
+        </svg>
+      </button>
+      <span v-if="!sidebarCollapsed" class="sidebar-resize-handle-bar" aria-hidden="true" />
     </div>
 
     <main
@@ -328,7 +358,7 @@
           :node-session-ids="snapshot?.nodeSessionIds || {}"
           :topology-selected-node-id="topologySelectedNodeId"
           :selected-node-id="selectedPlanNodeId"
-          :execution-disabled="executing"
+          :execution-disabled="executeInFlight"
           :editable="false"
           :show-settings-button="true"
           :panel-height="planGraphPanelHeight"
@@ -448,6 +478,7 @@ const WORKSPACE_STORAGE_KEY = 'pando_mesh_workspace_path'
 const DEFAULT_TEMPLATE_STORAGE_KEY = 'pando_mesh_default_template_id'
 const PLAN_MODE_STORAGE_KEY = 'pando_mesh_plan_mode'
 const SIDEBAR_WIDTH_STORAGE_KEY = 'pando_mesh_sidebar_width'
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'pando_mesh_sidebar_collapsed'
 const SIDEBAR_MIN_W = 220
 const SIDEBAR_MAX_W = 560
 const SIDEBAR_DEFAULT_W = 280
@@ -456,6 +487,10 @@ function readSidebarWidth() {
   const raw = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY))
   if (!Number.isFinite(raw)) return SIDEBAR_DEFAULT_W
   return Math.min(SIDEBAR_MAX_W, Math.max(SIDEBAR_MIN_W, Math.round(raw)))
+}
+
+function readSidebarCollapsed() {
+  return localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
 }
 
 const EMPTY_GRAPH = { nodes: [], edges: [], entry: '' }
@@ -471,9 +506,11 @@ const reqError = ref('')
 const reqOpeningId = ref('')
 const reqInitId = ref('')
 const reqStartId = ref('')
+const reqAbortId = ref('')
 const checkedRequirementIds = ref([])
 const batchBusy = ref(false)
 const sidebarWidth = ref(readSidebarWidth())
+const sidebarCollapsed = ref(readSidebarCollapsed())
 const sidebarResizing = ref(false)
 const mainTab = ref('home')
 
@@ -510,12 +547,48 @@ const snapshot = computed(() => {
   return extractPlanGraphSnapshot(workflow.value.metadata)
 })
 
-const executing = computed(() => Boolean(workflow.value?.running) || snapshot.value?.phase === 'executing')
+const workflowRunning = computed(() => Boolean(workflow.value?.running))
+const executing = computed(() => workflowRunning.value || snapshot.value?.phase === 'executing')
+const executeInFlight = computed(() => workflowRunning.value)
+const anyRequirementRunning = computed(() => requirements.value.some((item) => item.running))
 
 const awaitingPending = computed(() => {
-  const phase = snapshot.value?.phase
+  const phase = snapshot.value?.phase || workflow.value?.pending?.phase || 'idle'
   return phase === 'awaiting_human' || phase === 'awaiting_expand'
 })
+
+function requirementAwaitingPending(item) {
+  if (!item?.has_session) return false
+  if (item.requirement_id === selectedRequirementId.value && item.workflow_id === workflowId.value) {
+    return awaitingPending.value
+  }
+  const phase = String(item.plan_phase || '').trim()
+  return phase === 'awaiting_human' || phase === 'awaiting_expand'
+}
+
+function requirementStartTitle(item) {
+  if (requirementAwaitingPending(item)) {
+    const phase = item.requirement_id === selectedRequirementId.value
+      ? (snapshot.value?.phase || workflow.value?.pending?.phase || item.plan_phase)
+      : item.plan_phase
+    if (phase === 'awaiting_expand') return '工作流停在任务分裂确认，请先在右侧处理待确认事项'
+    if (phase === 'awaiting_human') return '工作流停在人工卡点，请先在右侧处理待确认事项'
+    return '工作流有待确认事项，请先在右侧处理'
+  }
+  if (item.running) return '工作流执行中'
+  return '启动本需求工作流'
+}
+
+function pendingStartBlockMessage() {
+  const phase = snapshot.value?.phase || workflow.value?.pending?.phase || 'idle'
+  if (phase === 'awaiting_expand') {
+    return '工作流停在「任务分裂确认」：请在右侧工作区顶部的黄色面板中确认子任务列表，然后再点启动。'
+  }
+  if (phase === 'awaiting_human') {
+    return '工作流停在「人工卡点」：请在右侧工作区顶部的黄色面板中通过或驳回，然后再点启动。'
+  }
+  return '当前工作流暂不可启动，请先处理右侧工作区的待确认事项。'
+}
 
 const isDynamicPlan = computed(() => {
   if (workflow.value?.plan_mode) return workflow.value.plan_mode === 'dynamic'
@@ -583,6 +656,16 @@ function resetWorkflowViewState() {
   selectedPlanNodeId.value = null
   topologySelectedNodeId.value = null
   planGraphPanelHeight.value = PLAN_GRAPH_DEFAULT_H
+}
+
+function toggleSidebarCollapsed() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, sidebarCollapsed.value ? '1' : '0')
+}
+
+function onSidebarHandleMouseDown(e) {
+  if (sidebarCollapsed.value) return
+  startResizeSidebar(e)
 }
 
 function startResizeSidebar(e) {
@@ -825,7 +908,8 @@ async function startRequirementWorkflow(item) {
     }
     if (!workflowId.value) return
     if (executing.value || awaitingPending.value) {
-      alert('当前工作流暂不可启动，请先处理待确认事项')
+      mainTab.value = 'workflow'
+      alert(pendingStartBlockMessage())
       return
     }
     await startRequirementItem(item, workflowId.value)
@@ -843,7 +927,7 @@ async function initRequirementFromTemplate(item) {
   const tplLabel = resolveTemplateLabel()
   const ok = window.confirm(
     item.workflow_id
-      ? `将用模板「${tplLabel}」重新初始化该需求的工作流，会清空执行历史与节点产出，是否继续？`
+      ? `将用模板「${tplLabel}」重新初始化该需求的工作流，会清空执行历史、待确认状态与节点产出，是否继续？`
       : `将用模板「${tplLabel}」为该需求创建 Session，是否继续？`,
   )
   if (!ok) return
@@ -851,6 +935,7 @@ async function initRequirementFromTemplate(item) {
   try {
     const wfId = await initRequirementItem(item)
     selectedRequirementId.value = item.requirement_id
+    mainTab.value = 'workflow'
     await loadWorkflow(wfId)
     await refreshRequirements()
   } catch (e) {
@@ -1019,31 +1104,76 @@ async function runGenerateGraph(goal) {
 }
 
 async function onExecuteFromNode(nodeId) {
-  if (executing.value || !workflowId.value) return
+  if (!workflowId.value) return
+  if (executeInFlight.value) {
+    alert('工作流正在执行中，请稍候')
+    return
+  }
   if (!workspacePath.value.trim()) {
     alert('请先在左侧填写 Workspace 路径')
     return
   }
+  const entry = graphSpec.value?.entry
+  const isEntry = entry && nodeId === entry
+  if (awaitingPending.value && !isEntry) {
+    const ok = window.confirm(
+      `${pendingStartBlockMessage()}\n\n若改为从步骤「${nodeId}」重新执行，将放弃当前待确认状态。是否继续？`,
+    )
+    if (!ok) return
+  } else if (awaitingPending.value && isEntry) {
+    alert(pendingStartBlockMessage())
+    return
+  }
   try {
-    const entry = graphSpec.value?.entry
-    const isEntry = entry && nodeId === entry
     await executeWorkflow(workflowId.value, {
       start_node_id: isEntry ? null : nodeId,
       clear_history: Boolean(isEntry),
     })
     await loadWorkflow(workflowId.value)
+    await refreshRequirementStatus()
   } catch (e) {
     alert(e?.message || '执行失败')
   }
 }
 
-async function onAbort() {
-  if (!workflowId.value) return
+async function abortWorkflowById(wfId) {
+  if (!wfId) return
   try {
-    await abortWorkflow(workflowId.value)
-    await loadWorkflow(workflowId.value)
+    await abortWorkflow(wfId)
+  } catch (e) {
+    const msg = String(e?.message || '')
+    if (!msg.includes('无进行中')) {
+      throw e
+    }
+  }
+  if (workflowId.value === wfId) {
+    await loadWorkflow(wfId)
+  }
+  await refreshRequirementStatus()
+}
+
+async function stopRequirementWorkflow(item) {
+  const wfId = item?.workflow_id
+  if (!wfId || reqAbortId.value) return
+  reqAbortId.value = wfId
+  try {
+    await abortWorkflowById(wfId)
+  } catch (e) {
+    alert(e?.message || '停止失败')
+  } finally {
+    reqAbortId.value = ''
+  }
+}
+
+async function onAbort() {
+  if (!workflowId.value || reqAbortId.value) return
+  reqAbortId.value = workflowId.value
+  try {
+    await abortWorkflowById(workflowId.value)
   } catch (e) {
     alert(e?.message || '中止失败')
+  } finally {
+    reqAbortId.value = ''
   }
 }
 
@@ -1147,13 +1277,13 @@ async function poll() {
       /* ignore transient errors */
     }
   }
-  if (executing.value || awaitingPending.value) {
+  if (executing.value || awaitingPending.value || anyRequirementRunning.value) {
     await refreshRequirementStatus()
   }
 }
 
 function pollIntervalMs() {
-  return (executing.value || awaitingPending.value) ? 2000 : 8000
+  return (executing.value || awaitingPending.value || anyRequirementRunning.value) ? 2000 : 8000
 }
 
 function schedulePoll() {
@@ -1235,6 +1365,19 @@ body.split-dragging {
   grid-column: 1 / -1;
   grid-row: 2;
   min-height: 0;
+}
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 28px 1fr;
+}
+.app-shell.sidebar-collapsed .sidebar {
+  display: none;
+}
+.app-shell.sidebar-collapsed .sidebar-resize-handle {
+  grid-column: 1;
+  cursor: default;
+}
+.app-shell.sidebar-collapsed .main {
+  grid-column: 2;
 }
 .app-header {
   grid-column: 1 / -1;
@@ -1427,14 +1570,46 @@ body.split-dragging {
 }
 .sidebar-resize-handle {
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: col-resize;
   touch-action: none;
   background: #fff;
   border-right: 1px solid #dadce0;
 }
-.sidebar-resize-handle:hover,
+.sidebar-resize-handle.collapsed {
+  cursor: default;
+}
+.sidebar-resize-handle:hover:not(.collapsed),
 .sidebar-resize-handle.dragging {
   background: var(--pm-primary-soft);
+}
+.sidebar-collapse-btn {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--pm-border-strong, #dadce0);
+  border-radius: 6px;
+  background: #fff;
+  color: #5f6368;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.sidebar-collapse-btn:hover {
+  background: var(--pm-surface-muted, #f1f3f4);
+  color: var(--pm-primary, #00b894);
+  border-color: var(--pm-primary-muted, #80cbc4);
+}
+.sidebar-resize-handle.collapsed .sidebar-collapse-btn {
+  width: 24px;
+  height: 48px;
 }
 .sidebar-resize-handle-bar {
   position: absolute;
@@ -1594,13 +1769,13 @@ body.split-dragging {
   padding: 0;
 }
 .req-list li {
-  padding: 10px;
+  padding: 8px;
   border-radius: 8px;
   cursor: pointer;
-  display: flex;
-  justify-content: flex-start;
-  gap: 8px;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(78px, max-content);
+  column-gap: 8px;
+  align-items: start;
   border: 1px solid transparent;
 }
 .req-list li.checked {
@@ -1612,6 +1787,7 @@ body.split-dragging {
   padding-top: 2px;
   flex-shrink: 0;
   cursor: pointer;
+  grid-column: 1;
 }
 .req-check input {
   margin: 0;
@@ -1624,20 +1800,27 @@ body.split-dragging {
 }
 .req-main {
   min-width: 0;
-  flex: 1;
+  grid-column: 2;
+  overflow: hidden;
 }
 .req-name {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  word-break: break-all;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .req-summary {
   display: block;
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 2px;
+  font-size: 10px;
   color: #80868b;
-  line-height: 1.35;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .req-badges {
   display: flex;
@@ -1645,12 +1828,32 @@ body.split-dragging {
   align-items: flex-end;
   gap: 4px;
   flex-shrink: 0;
-  margin-left: auto;
+  grid-column: 3;
+  position: relative;
+  z-index: 2;
+  min-width: max-content;
+  padding-left: 4px;
+}
+.req-list li.active .req-badges {
+  background: var(--pm-primary-soft);
 }
 .req-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 22px max-content;
   align-items: center;
-  gap: 4px;
+  gap: 4px 6px;
+  flex-shrink: 0;
+}
+.req-actions .btn-play {
+  grid-column: 1;
+  grid-row: 1;
+}
+.req-actions .btn-init {
+  grid-column: 2;
+  grid-row: 1;
+}
+.req-actions .btn-stop {
+  grid-column: 1 / -1;
 }
 .btn-play {
   width: 22px;
@@ -1665,6 +1868,8 @@ body.split-dragging {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 .btn-play:hover:not(:disabled) {
   background: var(--pm-primary-muted);
@@ -1685,6 +1890,10 @@ body.split-dragging {
   padding: 2px 6px;
   border-radius: 999px;
 }
+.req-tag-pending {
+  color: #e65100;
+  background: #fff8e1;
+}
 .btn-init {
   padding: 2px 8px;
   font-size: 10px;
@@ -1694,6 +1903,8 @@ body.split-dragging {
   background: var(--pm-primary-soft);
   color: var(--pm-primary-hover);
   cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .btn-init:hover:not(:disabled) {
   background: var(--pm-primary-muted);
@@ -1708,6 +1919,23 @@ body.split-dragging {
   background: #e3f2fd;
   padding: 2px 6px;
   border-radius: 999px;
+}
+.btn-stop {
+  padding: 2px 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  border-radius: 999px;
+  border: 1px solid #ef9a9a;
+  background: #ffebee;
+  color: #c62828;
+  cursor: pointer;
+}
+.btn-stop:hover:not(:disabled) {
+  background: #ffcdd2;
+}
+.btn-stop:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .main {
   padding: 16px;

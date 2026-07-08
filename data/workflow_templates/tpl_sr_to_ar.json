@@ -1,15 +1,15 @@
 {
   "template_id": "tpl_sr_to_ar",
   "name": "SR 架构分析",
-  "description": "基于 SR 变更说明进行架构影响、接口契约与逻辑流设计（Workspace: skills/ 目录）",
-  "user_goal": "对 {requirement_id} 完成架构元素影响分析并生成 AR 与实现设计",
+  "description": "基于 SR 变更说明进行架构影响、接口契约与逻辑流设计；支持 {sr_id}/{sr_doc} 占位符用于并行 Lane 展开（Workspace: skills/ 目录）",
+  "user_goal": "对 {requirement_id} 的 {sr_id} 完成架构元素影响分析并生成 AR 与实现设计",
   "judge_mode": "auto",
   "graph": {
     "nodes": [
       {
         "id": "step_arch_impact",
         "label": "架构影响域分析",
-        "task": "请使用 {workspace}/skills/04-fwd-arch-impact-analysis 这个 skill，基于 {requirement_id} 的 SR 变更说明分析架构元素影响并生成 AR 变更文档",
+        "task": "请使用 {workspace}/skills/04-fwd-arch-impact-analysis 这个 skill，基于 {sr_id} 的 SR 变更说明（{sr_doc}）分析架构元素影响并生成 AR 变更文档",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -23,10 +23,7 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
+              "resume_args": ["--resume", "{cli_session_id}"],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -53,18 +50,18 @@
         "node_role": "execute",
         "input_doc_paths": [
           "requirements/{requirement_id}/需求分析.md",
-          "requirements/{requirement_id}/feature_changes/{*}/{*}.md",
+          "{sr_doc}",
           "requirements/{requirement_id}/feature_changes/继承性分析报告.md",
           "architectures/{*}/{*}"
         ],
         "output_doc_paths": [
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+          "requirements/{requirement_id}/architecture_changes/{sr_id}/{*}.md"
         ]
       },
       {
         "id": "step_interface",
         "label": "接口契约分析",
-        "task": "请使用 {workspace}/skills/05-fwd-interface-contract-analysis 这个 skill，细化 {requirement_id} 的架构元素接口契约变更",
+        "task": "请使用 {workspace}/skills/05-fwd-interface-contract-analysis 这个 skill，细化 {sr_id} 相关架构元素接口契约变更",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -78,10 +75,7 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
+              "resume_args": ["--resume", "{cli_session_id}"],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -107,17 +101,17 @@
         "phase": "设计",
         "node_role": "execute",
         "input_doc_paths": [
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+          "requirements/{requirement_id}/architecture_changes/{sr_id}/{*}.md"
         ],
         "output_doc_paths": [
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
-          "requirements/{requirement_id}/interface_contracts/{*}/{*}.md"
+          "requirements/{requirement_id}/architecture_changes/{sr_id}/{*}.md",
+          "requirements/{requirement_id}/interface_contracts/{sr_id}/{*}.md"
         ]
       },
       {
         "id": "step_logic_design",
         "label": "业务流设计",
-        "task": "请使用 {workspace}/skills/06-fwd-logic-flow-design 这个 skill，为 {requirement_id} 生成模块级逻辑流与实现设计文档",
+        "task": "请使用 {workspace}/skills/06-fwd-logic-flow-design 这个 skill，为 {sr_id} 生成模块级逻辑流与实现设计文档",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -131,10 +125,7 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
+              "resume_args": ["--resume", "{cli_session_id}"],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -160,17 +151,17 @@
         "phase": "设计",
         "node_role": "execute",
         "input_doc_paths": [
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
-          "requirements/{requirement_id}/interface_contracts/{*}/{*}.md"
+          "requirements/{requirement_id}/architecture_changes/{sr_id}/{*}.md",
+          "requirements/{requirement_id}/interface_contracts/{sr_id}/{*}.md"
         ],
         "output_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
+          "requirements/{requirement_id}/repo_changes/{sr_id}/implementation_design.md"
         ]
       },
       {
         "id": "step_arch_qc",
         "label": "架构设计质检",
-        "task": "请使用 {workspace}/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 {requirement_id} 的架构与实现设计质量",
+        "task": "请使用 {workspace}/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 {sr_id} 的架构与实现设计质量",
         "max_iterations": 3,
         "executor": {
           "kind": "cli",
@@ -184,10 +175,7 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
+              "resume_args": ["--resume", "{cli_session_id}"],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -213,8 +201,8 @@
         "phase": "设计",
         "node_role": "check",
         "input_doc_paths": [
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md",
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
+          "requirements/{requirement_id}/architecture_changes/{sr_id}/{*}.md",
+          "requirements/{requirement_id}/repo_changes/{sr_id}/implementation_design.md"
         ]
       },
       {
@@ -230,50 +218,18 @@
       }
     ],
     "edges": [
-      {
-        "from": "START",
-        "to": "step_arch_impact",
-        "condition": "always"
-      },
-      {
-        "from": "step_arch_impact",
-        "to": "step_interface",
-        "condition": "always"
-      },
-      {
-        "from": "step_interface",
-        "to": "step_logic_design",
-        "condition": "always"
-      },
-      {
-        "from": "step_logic_design",
-        "to": "step_arch_qc",
-        "condition": "always"
-      },
-      {
-        "from": "step_arch_qc",
-        "to": "gate_ar_confirm",
-        "condition": "pass"
-      },
-      {
-        "from": "step_arch_qc",
-        "to": "step_arch_impact",
-        "condition": "reject"
-      },
-      {
-        "from": "gate_ar_confirm",
-        "to": "END",
-        "condition": "pass"
-      },
-      {
-        "from": "gate_ar_confirm",
-        "to": "step_arch_impact",
-        "condition": "reject"
-      }
+      { "from": "START", "to": "step_arch_impact", "condition": "always" },
+      { "from": "step_arch_impact", "to": "step_interface", "condition": "always" },
+      { "from": "step_interface", "to": "step_logic_design", "condition": "always" },
+      { "from": "step_logic_design", "to": "step_arch_qc", "condition": "always" },
+      { "from": "step_arch_qc", "to": "gate_ar_confirm", "condition": "pass" },
+      { "from": "step_arch_qc", "to": "step_arch_impact", "condition": "reject" },
+      { "from": "gate_ar_confirm", "to": "END", "condition": "pass" },
+      { "from": "gate_ar_confirm", "to": "step_arch_impact", "condition": "reject" }
     ],
     "entry": "step_arch_impact"
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-04 14:43:16"
+  "updated_at": "2026-07-06 22:15:00"
 }

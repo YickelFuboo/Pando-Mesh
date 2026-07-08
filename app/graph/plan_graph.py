@@ -152,13 +152,32 @@ class DirectExecGraph:
                         result.add(edge.from_id)
                         next_ids.add(edge.from_id)
             current_ids = next_ids
+        result.discard(node_id)
+        return result
+
+    def predecessors_for_partial_start(self, node_id: str) -> set[str]:
+        """部分重跑时必须有产出的上游：沿 ALWAYS/PASS 入边反向，不含 REJECT 返工边与自身。"""
+        result: set[str] = set()
+        current_ids = {node_id}
+        while current_ids:
+            next_ids: set[str] = set()
+            for nid in current_ids:
+                for edge in self.edges:
+                    if edge.to_id != nid or edge.from_id in (START_NODE, END_NODE):
+                        continue
+                    if edge.condition == EdgeCondition.REJECT:
+                        continue
+                    if edge.from_id not in result:
+                        result.add(edge.from_id)
+                        next_ids.add(edge.from_id)
+            current_ids = next_ids
+        result.discard(node_id)
         return result
 
     def downstream(self, node_id: str) -> set[str]:
-        """沿出边正向遍历，返回 node_id 之后还会经过的所有步骤 id（不含 END，不含自身）。
+        """沿 ALWAYS/PASS 出边正向遍历，返回 node_id 之后正常流程还会经过的步骤 id（不含 END，不含自身）。
 
-        用途：部分重跑时与起点一起清空 node_outputs / iterations，只保留起点之前的记录。
-        例：A → B → C 时 downstream('A') == {'B', 'C'}；downstream('B') == {'C'}。
+        REJECT 返工边指向更早步骤，不计入下游，避免部分重跑清空时误删上游产出。
         """
         result: set[str] = set()
         current_ids = {node_id}
@@ -167,6 +186,8 @@ class DirectExecGraph:
             for nid in current_ids:
                 for edge in self.outgoing_edges(nid):
                     if edge.to_id == END_NODE:
+                        continue
+                    if edge.condition == EdgeCondition.REJECT:
                         continue
                     if edge.to_id not in result:
                         result.add(edge.to_id)

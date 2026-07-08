@@ -23,8 +23,10 @@ from app.graph.plan_graph import (
 )
 from app.graph.cli_executor import CliNodeExecutor
 from app.graph.execution_pause import ExpandPause, HumanGatePause
-from app.graph.graph_expand import parse_tasks_from_output
+from app.graph.expand_planner import ExpandPlannerCallback, uses_native_llm_planner
+from app.graph.graph_expand import parse_expansion_result
 from app.graph.judge import build_judge_callback
+from app.graph.node_config import GraphNodeExpandConfig
 
 PersistPlanGraphCallback = Callable[[PlanGraphState, str], Awaitable[None]]
 JudgeRouteCallback = Callable[
@@ -98,19 +100,22 @@ class LangGraphExecutor:
         return start
 
     @staticmethod
-    def _validate_partial_start(plan_graph: PlanGraphState, graph: DirectExecGraph, start: str) -> Optional[str]:
+    def _validate_partial_start(plan_graph: PlanGraphState, graph: DirectExecGraph, start: str) -> None:
         if start == graph.entry_node_id:
-            return None
+            return
         missing = [
-            nid for nid in sorted(graph.ancestors(start))
-            if nid not in plan_graph.node_outputs
+            nid for nid in sorted(graph.predecessors_for_partial_start(start))
+            if nid in graph.nodes and nid not in plan_graph.node_outputs
         ]
         if not missing:
-            return None
-        labels = [graph.nodes[nid].label or nid for nid in missing]
+            return
+        labels = [
+            (graph.nodes[nid].label if nid in graph.nodes else None) or nid
+            for nid in missing
+        ]
         node = graph.nodes[start]
         label = node.label or start
-        return (
+        raise ValueError(
             f"无法从步骤「{label}」开始：上游步骤 {labels} 尚无产出，"
             "请先完整执行。"
         )
@@ -122,25 +127,21 @@ class LangGraphExecutor:
         runtime_ctx: RuntimeContext,
         persist_plangraph_callback: Optional[PersistPlanGraphCallback] = None,
         judge_route_callback: Optional[JudgeRouteCallback] = None,
+        expand_planner_callback: Optional[ExpandPlannerCallback] = None,
         start_node_id: Optional[str] = None,
     ) -> str:
         if runtime_ctx.is_aborted():
-            return "编排已中止"
+            raise ValueError("编排已中止")
 
         graph = plan_graph.resolve_graph()
         if graph is None:
-            return "编排方案无效或缺失，无法执行。"
+            raise ValueError("编排方案无效或缺失，无法执行。")
 
-        try:
-            start = LangGraphExecutor._resolve_start_node(graph, start_node_id)
-        except ValueError as e:
-            return str(e)
+        start = LangGraphExecutor._resolve_start_node(graph, start_node_id)
 
         partial = bool((start_node_id or "").strip()) and not graph.is_entry_node(start or "")
         if partial:
-            err = LangGraphExecutor._validate_partial_start(plan_graph, graph, start)
-            if err:
-                return err
+            LangGraphExecutor._validate_partial_start(plan_graph, graph, start)
 
         judge_cb = judge_route_callback or build_judge_callback()
         initial: LangGraphRunState = {
@@ -171,6 +172,7 @@ class LangGraphExecutor:
             runtime_ctx,
             persist_plangraph_callback,
             judge_cb,
+            expand_planner_callback=expand_planner_callback,
             start_node_id=start,
         ).compile(checkpointer=await _get_checkpointer())
 
@@ -195,7 +197,7 @@ class LangGraphExecutor:
             await persist_plangraph_callback(plan_graph, done_msg)
 
         if final_result.get("error_message"):
-            return str(final_result["error_message"])
+            raise ValueError(str(final_result["error_message"]))
         summary_parts = final_result.get("summary_parts") or []
         return "\n\n".join(summary_parts) if summary_parts else "(无执行结果)"
 
@@ -206,6 +208,7 @@ class LangGraphExecutor:
         runtime_ctx: RuntimeContext,
         persist_plangraph_callback: Optional[PersistPlanGraphCallback],
         judge_route_callback: JudgeRouteCallback,
+        expand_planner_callback: Optional[ExpandPlannerCallback] = None,
         start_node_id: Optional[str] = None,
     ) -> StateGraph:
         graph = plan_graph.resolve_graph()
@@ -243,6 +246,7 @@ class LangGraphExecutor:
                     runtime_ctx=runtime_ctx,
                     persist_plangraph_callback=persist_plangraph_callback,
                     judge_route_callback=judge_route_callback,
+                    expand_planner_callback=expand_planner_callback,
                 ),
             )
         workflow.add_edge(START, entry)
@@ -271,6 +275,7 @@ class LangGraphExecutor:
         runtime_ctx: RuntimeContext,
         persist_plangraph_callback: Optional[PersistPlanGraphCallback],
         judge_route_callback: JudgeRouteCallback,
+        expand_planner_callback: Optional[ExpandPlannerCallback] = None,
     ) -> Dict[str, Any]:
         graph = plan_graph.resolve_graph()
         if graph is None:
@@ -357,28 +362,53 @@ class LangGraphExecutor:
         if graph_node.is_expand():
             expand_cfg = graph_node.executor.expand
             source_id = (expand_cfg.source_node_id if expand_cfg else "").strip()
-            if not source_id:
-                if not pred_ids:
-                    raise ValueError(f"分裂节点「{graph_node.label}」无法确定任务来源")
-                source_id = pred_ids[0]
-            source_output = node_outputs.get(source_id) or pre_outputs.get(source_id) or ""
-            tasks = parse_tasks_from_output(source_output)
+            if uses_native_llm_planner(expand_cfg):
+                if expand_planner_callback is None:
+                    raise ValueError(f"分裂节点「{graph_node.label}」需要 LLM 扩展规划，但未配置模型")
+                if persist_plangraph_callback is not None:
+                    await persist_plangraph_callback(
+                        plan_graph,
+                        f"步骤「{graph_node.label}」正在调用 LLM 生成扩展计划…",
+                    )
+                source_output = await expand_planner_callback(
+                    graph,
+                    graph_node,
+                    expand_cfg or GraphNodeExpandConfig(),
+                    agent_ctx,
+                    node_outputs,
+                )
+                plan_graph.node_outputs[current_node_id] = source_output
+                source_id = current_node_id
+            else:
+                if not source_id:
+                    if not pred_ids:
+                        raise ValueError(f"分裂节点「{graph_node.label}」无法确定任务来源")
+                    source_id = pred_ids[0]
+                source_output = node_outputs.get(source_id) or pre_outputs.get(source_id) or ""
+            expansion = parse_expansion_result(
+                source_output,
+                mode=(expand_cfg.mode if expand_cfg else "auto"),
+                default_lane_template_id=(expand_cfg.default_lane_template_id if expand_cfg else ""),
+            )
             async with _PLAN_RUNNING_LOCK:
                 running_ids = list(plan_graph.running_node_ids or [])
                 if current_node_id in running_ids:
                     running_ids.remove(current_node_id)
                 _sync_plan_running(plan_graph, running_ids)
+            expand_count = len(expansion.get("lanes") or expansion.get("tasks") or [])
             plan_graph.pending_expand = {
                 "node_id": current_node_id,
                 "source_node_id": source_id,
                 "merge_label": (expand_cfg.merge_label if expand_cfg else "任务汇聚"),
-                "tasks": tasks,
+                "mode": expansion.get("mode") or "task",
+                "tasks": expansion.get("tasks") or [],
+                "lanes": expansion.get("lanes") or [],
             }
             plan_graph.phase = PlanGraphPhase.AWAITING_EXPAND
             if persist_plangraph_callback is not None:
                 await persist_plangraph_callback(
                     plan_graph,
-                    f"步骤「{graph_node.label}」已解析 {len(tasks)} 个子任务，等待确认分裂。",
+                    f"步骤「{graph_node.label}」已解析 {expand_count} 个分支，等待确认分裂。",
                 )
             raise ExpandPause(current_node_id)
 
@@ -433,6 +463,15 @@ class LangGraphExecutor:
             "last_route": last_route,
             "summary_parts": [f"### {graph_node.label}\n{output[:2000]}"],
         }
+
+    @staticmethod
+    async def _emit_runtime_message(runtime_ctx: RuntimeContext, msg: Message) -> None:
+        seen: set[int] = set()
+        for cb in (runtime_ctx.push_history_callback, runtime_ctx.notify_user_callback):
+            if cb is None or id(cb) in seen:
+                continue
+            seen.add(id(cb))
+            await cb(msg)
 
     @staticmethod
     def _expand_session_text(text: str, agent_ctx: Optional[AgentContext]) -> str:
@@ -527,13 +566,14 @@ class LangGraphExecutor:
                 agent_ctx,
                 runtime_ctx,
             )
+        except asyncio.CancelledError:
+            raise
         except Exception:
             logging.exception("CLI node execution failed: %s", graph_node.id)
             raise
 
         stop_notice = f"步骤「{graph_node.label}」（CLI/{mode}）执行完毕\n\n{result}"
-        if runtime_ctx.push_history_callback:
-            await runtime_ctx.push_history_callback(Message.assistant_message(stop_notice))
-        if runtime_ctx.notify_user_callback:
-            await runtime_ctx.notify_user_callback(Message.assistant_message(stop_notice))
+        await LangGraphExecutor._emit_runtime_message(
+            runtime_ctx, Message.assistant_message(stop_notice)
+        )
         return result

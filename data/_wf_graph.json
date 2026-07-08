@@ -1,0 +1,2288 @@
+{
+  "nodes": [
+    {
+      "id": "step_req_analysis",
+      "label": "① 需求澄清与分析",
+      "task": "请使用 {workspace}/skills/01-fwd-req-analysis 这个 skill，阅读 {requirement_id} 的原始需求描述，完成澄清与结构化分析",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求描述.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md"
+      ]
+    },
+    {
+      "id": "step_req_qc",
+      "label": "② 需求分析质检",
+      "task": "请使用 {workspace}/skills/01-Q-fwd-req-quality-check 这个 skill，对 {requirement_id} 的需求分析结果进行质量检查",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md",
+        "requirements/{requirement_id}/需求描述.md"
+      ]
+    },
+    {
+      "id": "step_feature_impact",
+      "label": "③ 特性影响分析（产出全部 SR）",
+      "task": "请使用 {workspace}/skills/02-fwd-feature-change-gen 这个 skill，对 {requirement_id} 进行特性影响分析并生成 SR 变更说明",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+      ]
+    },
+    {
+      "id": "step_inheritance",
+      "label": "④ 特性继承性分析",
+      "task": "请使用 {workspace}/skills/03-fwd-inheritance-analysis 这个 skill，分析 {requirement_id} 对存量场景的继承性影响",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md",
+        "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/feature_changes/继承性分析报告.md"
+      ]
+    },
+    {
+      "id": "step_scenario_qc",
+      "label": "⑤ 场景分析质检",
+      "task": "请使用 {workspace}/skills/03-Q-fwd-scenario-impact-check 这个 skill，检查 {requirement_id} 的特性与 SR 分析结果",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/feature_changes/{*}/{*}.md",
+        "requirements/{requirement_id}/feature_changes/继承性分析报告.md"
+      ]
+    },
+    {
+      "id": "step_feature_index",
+      "label": "⑥ 特性索引同步",
+      "task": "请使用 {workspace}/skills/fwd-feature-index-update 这个 skill，根据 {requirement_id} 的 feature_changes 同步 features 特性索引（含新增/修改/删除场景条目）",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/feature_changes/{*}/{*}.md"
+      ],
+      "output_doc_paths": [
+        "features/feature_root.yaml",
+        "features/{*}/{*}_feature.yaml"
+      ]
+    },
+    {
+      "id": "gate_sr_confirm",
+      "label": "⑧ SR 阶段确认",
+      "task": "请确认 Requirements 树中 SR 列表与 Features 树场景增删改是否正确",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "设计",
+      "node_role": "execute"
+    },
+    {
+      "id": "step_scope_refine",
+      "label": "⑰ 变更范围细化",
+      "task": "请使用 {workspace}/skills/07-fwd-change-scope-refinement 这个 skill，将 {requirement_id} 的实现设计细化为代码仓/文件/函数级变更范围",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+        "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
+      ]
+    },
+    {
+      "id": "expand_repo",
+      "label": "⑫ REPO 并行扩展",
+      "task": "根据 repo_changes 下各代码仓目录（含 implementation_design.md），为每个代码仓选择 tpl_ar_to_code 模板生成并行 Lane。placeholders 需包含 branch_id、repo_id（目录名）。E2E 中须在 skip_nodes 加入 step_scope_refine、step_code_qc、step_ut_generate、step_ut_execute、gate_delivery，仅保留 step_codegen。",
+      "max_iterations": 1,
+      "executor": {
+        "kind": "expand",
+        "expand": {
+          "merge_label": "REPO 分支汇聚",
+          "default_lane_template_id": "tpl_ar_to_code",
+          "planner": "native_llm",
+          "catalog_templates": [
+            "tpl_ar_to_code"
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+        "requirements/{requirement_id}/repo_changes/overview.md"
+      ]
+    },
+    {
+      "id": "step_code_qc",
+      "label": "⑳ 代码合规检查",
+      "task": "请使用 {workspace}/skills/09-fwd-code-compliance-check 这个 skill，检查 {requirement_id} 相关代码变更的合规性",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/overview.md"
+      ]
+    },
+    {
+      "id": "step_ut_generate",
+      "label": "㉑ 单元测试生成",
+      "task": "请使用 {workspace}/skills/10-fwd-ut-generate 这个 skill，基于 {requirement_id} 的代码变更与实现设计生成单元测试代码，覆盖正常/异常/边界路径",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "requirements/{requirement_id}/test_changes/test_points.md"
+      ]
+    },
+    {
+      "id": "step_ut_execute",
+      "label": "㉒ UT 执行与覆盖率",
+      "task": "请使用 {workspace}/skills/11-fwd-ut-execute-coverage 这个 skill，编译并执行 {requirement_id} 相关单元测试，收集覆盖率并输出执行报告",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/overview.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+      ]
+    },
+    {
+      "id": "gate_code_delivery",
+      "label": "㉓ 代码交付确认",
+      "task": "请确认各代码仓变更与 UT 执行结果是否满足 {requirement_id} 验收标准",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "开发",
+      "node_role": "execute"
+    },
+    {
+      "id": "step_repo_deps",
+      "label": "㉔ 多仓依赖解析",
+      "task": "请使用 {workspace}/skills/12-fwd-multi-repo-dependency 这个 skill，基于 {requirement_id} 的 repo_changes 与架构元素树解析多仓编译依赖并生成编译计划",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "architectures/logic_view/elements_tree.yaml",
+        "architectures/deployment_view/environment.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/build_dependency_plan.md"
+      ]
+    },
+    {
+      "id": "step_version_pack",
+      "label": "㉕ 版本打包",
+      "task": "请使用 {workspace}/skills/13-fwd-version-packaging 这个 skill，按编译计划对 {requirement_id} 涉及的全部代码仓执行构建并生成版本包",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/build_dependency_plan.md",
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/build_log.md",
+        "requirements/{requirement_id}/repo_changes/version_manifest.md"
+      ]
+    },
+    {
+      "id": "step_code_gate",
+      "label": "㉖ 代码阶段门禁",
+      "task": "请使用 {workspace}/skills/qa-stage-gate-check 这个 skill，依据 knowledge/质量门禁/代码阶段门禁.yaml 检查 {requirement_id} 的代码、UT 与构建产物是否满足门禁",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "开发",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "requirements/{requirement_id}/repo_changes/build_log.md",
+        "requirements/{requirement_id}/repo_changes/version_manifest.md",
+        "requirements/{requirement_id}/test_changes/ut_execution_report.md"
+      ]
+    },
+    {
+      "id": "gate_build_confirm",
+      "label": "㉗ 构建确认",
+      "task": "请确认多仓编译日志、版本包清单与代码阶段门禁结果",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "开发",
+      "node_role": "execute"
+    },
+    {
+      "id": "step_test_case",
+      "label": "㉘ 测试用例生成",
+      "task": "请使用 {workspace}/skills/14-fwd-test-case-generate 这个 skill，基于 {requirement_id} 的需求分析与测试点生成或更新测试用例",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md",
+        "requirements/{requirement_id}/test_changes/test_points.md",
+        "requirements/{requirement_id}/test_changes/test_scope.md"
+      ],
+      "output_doc_paths": [
+        "tests/test_cases/{*}/TC_{*}.md"
+      ]
+    },
+    {
+      "id": "step_regression_select",
+      "label": "㉙ 回归测试选择",
+      "task": "请使用 {workspace}/skills/fwd-regression-test-select 这个 skill，基于 {requirement_id} 的继承性与架构影响分析选择回归测试范围",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/feature_changes/继承性分析报告.md",
+        "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/regression_test_list.md"
+      ]
+    },
+    {
+      "id": "step_test_script",
+      "label": "㉚ 测试脚本转换",
+      "task": "请使用 {workspace}/skills/15-fwd-test-script-convert 这个 skill，将 {requirement_id} 相关测试用例转换为可执行自动化脚本",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "tests/test_cases/{*}/TC_{*}.md",
+        "requirements/{requirement_id}/test_changes/regression_test_list.md"
+      ],
+      "output_doc_paths": [
+        "tests/scripts/test_{*}.py"
+      ]
+    },
+    {
+      "id": "step_env_topology",
+      "label": "㉛ 测试环境拓扑",
+      "task": "请使用 {workspace}/skills/16-fwd-env-topology-modeling 这个 skill，为 {requirement_id} 构建集成测试环境拓扑与部署配置",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "architectures/deployment_view/deployment.md",
+        "architectures/deployment_view/environment.md",
+        "requirements/{requirement_id}/repo_changes/version_manifest.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/env_topology.yaml"
+      ]
+    },
+    {
+      "id": "gate_test_design_confirm",
+      "label": "㉜ 测试资产确认",
+      "task": "请确认测试用例、回归清单、自动化脚本与环境拓扑是否就绪",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "测试",
+      "node_role": "execute"
+    },
+    {
+      "id": "gate_it_exec",
+      "label": "㉝ 集成测试执行",
+      "task": "请按 env_topology.yaml 部署版本包，执行 regression_test_list 所列 IT/E2E 用例，并将结果写入 test_execution_report.md",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "测试",
+      "node_role": "execute"
+    },
+    {
+      "id": "step_failure_analysis",
+      "label": "㉞ 失败根因分析",
+      "task": "请使用 {workspace}/skills/17-fwd-failure-root-cause 这个 skill，分析 {requirement_id} 集成测试失败用例并输出根因分类报告",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/test_changes/test_execution_report.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+      ]
+    },
+    {
+      "id": "step_artifact_verify",
+      "label": "㉟ 测试产物校验",
+      "task": "请使用 {workspace}/skills/qa-artifact-auto-verify 这个 skill，校验 {requirement_id} 测试产物与需求/架构/场景覆盖的一致性",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md",
+        "requirements/{requirement_id}/test_changes/test_execution_report.md",
+        "requirements/{requirement_id}/test_changes/regression_test_list.md",
+        "tests/test_cases/{*}/TC_{*}.md"
+      ]
+    },
+    {
+      "id": "step_quality_metrics",
+      "label": "㊱ 质量度量",
+      "task": "请使用 {workspace}/skills/18-fwd-quality-metrics 这个 skill，汇总 {requirement_id} 的 UT 与集成测试结果并输出质量度量报告",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/test_changes/ut_execution_report.md",
+        "requirements/{requirement_id}/test_changes/test_execution_report.md",
+        "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/quality_report.md"
+      ]
+    },
+    {
+      "id": "step_hardening",
+      "label": "㊲ 加固建议",
+      "task": "请使用 {workspace}/skills/19-fwd-hardening-suggestions 这个 skill，基于 {requirement_id} 质量度量结果输出加固建议",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/test_changes/quality_report.md",
+        "requirements/{requirement_id}/test_changes/failure_analysis_report.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/test_changes/hardening_suggestions.md"
+      ]
+    },
+    {
+      "id": "step_delivery_report",
+      "label": "㊳ 交付报告生成",
+      "task": "请使用 {workspace}/skills/fwd-delivery-report-gen 这个 skill，汇总 {requirement_id} 全流程产物并生成交付报告",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/需求分析.md",
+        "requirements/{requirement_id}/repo_changes/overview.md",
+        "requirements/{requirement_id}/test_changes/quality_report.md",
+        "requirements/{requirement_id}/test_changes/hardening_suggestions.md"
+      ],
+      "output_doc_paths": [
+        "requirements/{requirement_id}/delivery_report.md"
+      ]
+    },
+    {
+      "id": "step_test_gate",
+      "label": "㊴ 测试阶段门禁",
+      "task": "请使用 {workspace}/skills/qa-stage-gate-check 这个 skill，依据 knowledge/质量门禁/测试阶段门禁.yaml 检查 {requirement_id} 测试与交付产物",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "测试",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/{requirement_id}/delivery_report.md",
+        "requirements/{requirement_id}/test_changes/quality_report.md",
+        "requirements/{requirement_id}/test_changes/test_execution_report.md"
+      ]
+    },
+    {
+      "id": "gate_delivery_final",
+      "label": "㊵ 交付确认",
+      "task": "请确认 {requirement_id} 交付报告、质量度量、加固建议与测试门禁结果，判定是否可发布",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "测试",
+      "node_role": "execute"
+    },
+    {
+      "id": "fork_step_feature_index",
+      "label": "并行分发",
+      "task": "将上游任务分裂为并行子步骤",
+      "max_iterations": 1,
+      "executor": {
+        "kind": "fork"
+      },
+      "node_role": "execute"
+    },
+    {
+      "id": "merge_step_feature_index",
+      "label": "SR 分支汇聚",
+      "task": "等待全部分支完成后继续",
+      "max_iterations": 1,
+      "executor": {
+        "kind": "fork"
+      },
+      "node_role": "execute"
+    },
+    {
+      "id": "sr_001__step_arch_impact",
+      "label": "SR-001-会话建立携带UE位置 · 架构影响域分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/04-fwd-arch-impact-analysis 这个 skill，基于 SR-001 的 SR 变更说明（requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-001-会话建立携带UE位置_变更说明.md）分析架构元素影响并生成 AR 变更文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/需求分析.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-001-会话建立携带UE位置_变更说明.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/继承性分析报告.md",
+        "architectures/{*}/{*}"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-001/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_001__step_interface",
+      "label": "接口契约分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/05-fwd-interface-contract-analysis 这个 skill，细化 SR-001 相关架构元素接口契约变更",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-001/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-001/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-001/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_001__step_logic_design",
+      "label": "业务流设计",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-fwd-logic-flow-design 这个 skill，为 SR-001 生成模块级逻辑流与实现设计文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-001/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-001/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-001/implementation_design.md"
+      ]
+    },
+    {
+      "id": "sr_001__step_arch_qc",
+      "label": "架构设计质检",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 SR-001 的架构与实现设计质量",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-001/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-001/implementation_design.md"
+      ]
+    },
+    {
+      "id": "sr_002__step_arch_impact",
+      "label": "SR-002-缺少UE位置保持会话连续性 · 架构影响域分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/04-fwd-arch-impact-analysis 这个 skill，基于 SR-002 的 SR 变更说明（requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-002-缺少UE位置保持会话连续性_变更说明.md）分析架构元素影响并生成 AR 变更文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/需求分析.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-002-缺少UE位置保持会话连续性_变更说明.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/继承性分析报告.md",
+        "architectures/{*}/{*}"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-002/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_002__step_interface",
+      "label": "接口契约分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/05-fwd-interface-contract-analysis 这个 skill，细化 SR-002 相关架构元素接口契约变更",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-002/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-002/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-002/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_002__step_logic_design",
+      "label": "业务流设计",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-fwd-logic-flow-design 这个 skill，为 SR-002 生成模块级逻辑流与实现设计文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-002/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-002/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-002/implementation_design.md"
+      ]
+    },
+    {
+      "id": "sr_002__step_arch_qc",
+      "label": "架构设计质检",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 SR-002 的架构与实现设计质量",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-002/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-002/implementation_design.md"
+      ]
+    },
+    {
+      "id": "sr_003__step_arch_impact",
+      "label": "SR-003-不同位置类型语义透传 · 架构影响域分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/04-fwd-arch-impact-analysis 这个 skill，基于 SR-003 的 SR 变更说明（requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-003-不同位置类型语义透传_变更说明.md）分析架构元素影响并生成 AR 变更文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/需求分析.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/SM策略关联UE位置携带/SR-003-不同位置类型语义透传_变更说明.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/feature_changes/继承性分析报告.md",
+        "architectures/{*}/{*}"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-003/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_003__step_interface",
+      "label": "接口契约分析",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/05-fwd-interface-contract-analysis 这个 skill，细化 SR-003 相关架构元素接口契约变更",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-003/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-003/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-003/{*}.md"
+      ]
+    },
+    {
+      "id": "sr_003__step_logic_design",
+      "label": "业务流设计",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-fwd-logic-flow-design 这个 skill，为 SR-003 生成模块级逻辑流与实现设计文档",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "execute",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-003/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/interface_contracts/SR-003/{*}.md"
+      ],
+      "output_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-003/implementation_design.md"
+      ]
+    },
+    {
+      "id": "sr_003__step_arch_qc",
+      "label": "架构设计质检",
+      "task": "请使用 F:\\Product_Dev\\AI-Worker-Project/skills/06-Q-fwd-architecture-design-check 这个 skill，检查 SR-003 的架构与实现设计质量",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "cli",
+        "registered_agent_id": "claude_code",
+        "cli": {
+          "input": "arg",
+          "cwd": "{workspace}",
+          "timeout_sec": 3600,
+          "env": {},
+          "output_mode": "json",
+          "result_json_key": "result",
+          "session": {
+            "enabled": true,
+            "resume_args": [
+              "--resume",
+              "{cli_session_id}"
+            ],
+            "read_session_id_from_json": true,
+            "session_id_json_key": "session_id",
+            "history": {
+              "provider": "claude_code_jsonl",
+              "config_dir": "~/.claude"
+            }
+          },
+          "commands": [
+            {
+              "command": "claude",
+              "args": [
+                "-p",
+                "--output-format",
+                "json",
+                "--dangerously-skip-permissions",
+                "--disallowedTools",
+                "AskUserQuestion"
+              ]
+            }
+          ]
+        }
+      },
+      "phase": "设计",
+      "node_role": "check",
+      "input_doc_paths": [
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/architecture_changes/SR-003/{*}.md",
+        "requirements/REQ-002-smf-sm-policy-create-ue-location/repo_changes/SR-003/implementation_design.md"
+      ]
+    },
+    {
+      "id": "gate_ar_confirm",
+      "label": "⑩ AR 阶段确认",
+      "task": "请确认 Requirements 树中 AR 与实现设计是否正确",
+      "max_iterations": 3,
+      "executor": {
+        "kind": "human"
+      },
+      "phase": "设计",
+      "node_role": "execute"
+    }
+  ],
+  "edges": [
+    {
+      "from": "START",
+      "to": "step_req_analysis",
+      "condition": "always"
+    },
+    {
+      "from": "step_req_analysis",
+      "to": "step_req_qc",
+      "condition": "always"
+    },
+    {
+      "from": "step_req_qc",
+      "to": "step_feature_impact",
+      "condition": "pass"
+    },
+    {
+      "from": "step_req_qc",
+      "to": "step_req_analysis",
+      "condition": "reject"
+    },
+    {
+      "from": "step_feature_impact",
+      "to": "step_inheritance",
+      "condition": "always"
+    },
+    {
+      "from": "step_inheritance",
+      "to": "step_scenario_qc",
+      "condition": "always"
+    },
+    {
+      "from": "step_scenario_qc",
+      "to": "step_feature_index",
+      "condition": "pass"
+    },
+    {
+      "from": "step_scenario_qc",
+      "to": "step_feature_impact",
+      "condition": "reject"
+    },
+    {
+      "from": "gate_sr_confirm",
+      "to": "step_feature_impact",
+      "condition": "reject"
+    },
+    {
+      "from": "step_scope_refine",
+      "to": "expand_repo",
+      "condition": "always"
+    },
+    {
+      "from": "expand_repo",
+      "to": "step_code_qc",
+      "condition": "always"
+    },
+    {
+      "from": "step_code_qc",
+      "to": "step_ut_generate",
+      "condition": "pass"
+    },
+    {
+      "from": "step_code_qc",
+      "to": "expand_repo",
+      "condition": "reject"
+    },
+    {
+      "from": "step_ut_generate",
+      "to": "step_ut_execute",
+      "condition": "always"
+    },
+    {
+      "from": "step_ut_execute",
+      "to": "gate_code_delivery",
+      "condition": "pass"
+    },
+    {
+      "from": "step_ut_execute",
+      "to": "step_ut_generate",
+      "condition": "reject"
+    },
+    {
+      "from": "gate_code_delivery",
+      "to": "step_repo_deps",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_code_delivery",
+      "to": "expand_repo",
+      "condition": "reject"
+    },
+    {
+      "from": "step_repo_deps",
+      "to": "step_version_pack",
+      "condition": "always"
+    },
+    {
+      "from": "step_version_pack",
+      "to": "step_code_gate",
+      "condition": "always"
+    },
+    {
+      "from": "step_code_gate",
+      "to": "gate_build_confirm",
+      "condition": "pass"
+    },
+    {
+      "from": "step_code_gate",
+      "to": "step_version_pack",
+      "condition": "reject"
+    },
+    {
+      "from": "gate_build_confirm",
+      "to": "step_test_case",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_build_confirm",
+      "to": "step_version_pack",
+      "condition": "reject"
+    },
+    {
+      "from": "step_test_case",
+      "to": "step_regression_select",
+      "condition": "always"
+    },
+    {
+      "from": "step_regression_select",
+      "to": "step_test_script",
+      "condition": "always"
+    },
+    {
+      "from": "step_test_script",
+      "to": "step_env_topology",
+      "condition": "always"
+    },
+    {
+      "from": "step_env_topology",
+      "to": "gate_test_design_confirm",
+      "condition": "always"
+    },
+    {
+      "from": "gate_test_design_confirm",
+      "to": "gate_it_exec",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_test_design_confirm",
+      "to": "step_test_case",
+      "condition": "reject"
+    },
+    {
+      "from": "gate_it_exec",
+      "to": "step_failure_analysis",
+      "condition": "pass"
+    },
+    {
+      "from": "step_failure_analysis",
+      "to": "step_artifact_verify",
+      "condition": "always"
+    },
+    {
+      "from": "step_artifact_verify",
+      "to": "step_quality_metrics",
+      "condition": "pass"
+    },
+    {
+      "from": "step_artifact_verify",
+      "to": "gate_it_exec",
+      "condition": "reject"
+    },
+    {
+      "from": "step_quality_metrics",
+      "to": "step_hardening",
+      "condition": "always"
+    },
+    {
+      "from": "step_hardening",
+      "to": "step_delivery_report",
+      "condition": "always"
+    },
+    {
+      "from": "step_delivery_report",
+      "to": "step_test_gate",
+      "condition": "always"
+    },
+    {
+      "from": "step_test_gate",
+      "to": "gate_delivery_final",
+      "condition": "pass"
+    },
+    {
+      "from": "step_test_gate",
+      "to": "step_quality_metrics",
+      "condition": "reject"
+    },
+    {
+      "from": "gate_delivery_final",
+      "to": "END",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_delivery_final",
+      "to": "step_delivery_report",
+      "condition": "reject"
+    },
+    {
+      "from": "sr_001__step_arch_impact",
+      "to": "sr_001__step_interface",
+      "condition": "always"
+    },
+    {
+      "from": "sr_001__step_interface",
+      "to": "sr_001__step_logic_design",
+      "condition": "always"
+    },
+    {
+      "from": "sr_001__step_logic_design",
+      "to": "sr_001__step_arch_qc",
+      "condition": "always"
+    },
+    {
+      "from": "sr_001__step_arch_qc",
+      "to": "sr_001__step_arch_impact",
+      "condition": "reject"
+    },
+    {
+      "from": "sr_002__step_arch_impact",
+      "to": "sr_002__step_interface",
+      "condition": "always"
+    },
+    {
+      "from": "sr_002__step_interface",
+      "to": "sr_002__step_logic_design",
+      "condition": "always"
+    },
+    {
+      "from": "sr_002__step_logic_design",
+      "to": "sr_002__step_arch_qc",
+      "condition": "always"
+    },
+    {
+      "from": "sr_002__step_arch_qc",
+      "to": "sr_002__step_arch_impact",
+      "condition": "reject"
+    },
+    {
+      "from": "sr_003__step_arch_impact",
+      "to": "sr_003__step_interface",
+      "condition": "always"
+    },
+    {
+      "from": "sr_003__step_interface",
+      "to": "sr_003__step_logic_design",
+      "condition": "always"
+    },
+    {
+      "from": "sr_003__step_logic_design",
+      "to": "sr_003__step_arch_qc",
+      "condition": "always"
+    },
+    {
+      "from": "sr_003__step_arch_qc",
+      "to": "sr_003__step_arch_impact",
+      "condition": "reject"
+    },
+    {
+      "from": "step_feature_index",
+      "to": "fork_step_feature_index",
+      "condition": "always"
+    },
+    {
+      "from": "fork_step_feature_index",
+      "to": "sr_001__step_arch_impact",
+      "condition": "always"
+    },
+    {
+      "from": "fork_step_feature_index",
+      "to": "sr_002__step_arch_impact",
+      "condition": "always"
+    },
+    {
+      "from": "fork_step_feature_index",
+      "to": "sr_003__step_arch_impact",
+      "condition": "always"
+    },
+    {
+      "from": "sr_001__step_arch_qc",
+      "to": "merge_step_feature_index",
+      "condition": "always"
+    },
+    {
+      "from": "sr_002__step_arch_qc",
+      "to": "merge_step_feature_index",
+      "condition": "always"
+    },
+    {
+      "from": "sr_003__step_arch_qc",
+      "to": "merge_step_feature_index",
+      "condition": "always"
+    },
+    {
+      "from": "merge_step_feature_index",
+      "to": "gate_sr_confirm",
+      "condition": "always"
+    },
+    {
+      "from": "gate_sr_confirm",
+      "to": "gate_ar_confirm",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_ar_confirm",
+      "to": "step_scope_refine",
+      "condition": "pass"
+    },
+    {
+      "from": "gate_ar_confirm",
+      "to": "fork_step_feature_index",
+      "condition": "reject"
+    }
+  ],
+  "entry": "step_req_analysis"
+}

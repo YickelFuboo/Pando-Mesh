@@ -293,23 +293,66 @@ class GraphNodeCliConfig:
 
 
 @dataclass(frozen=True)
+class GraphNodeHumanConfig:
+    auto_confirm: bool = False
+
+    @classmethod
+    def from_dict(cls, raw: Any) -> "GraphNodeHumanConfig":
+        if not isinstance(raw, dict):
+            return cls()
+        return cls(auto_confirm=_parse_bool(raw.get("auto_confirm"), default=False))
+
+    def to_dict(self) -> Dict[str, Any]:
+        if not self.auto_confirm:
+            return {}
+        return {"auto_confirm": True}
+
+
+@dataclass(frozen=True)
 class GraphNodeExpandConfig:
     source_node_id: str = ""
     merge_label: str = "任务汇聚"
+    mode: str = "auto"
+    confirm_mode: str = "manual"
+    default_lane_template_id: str = ""
+    planner: str = "source"
+    catalog_templates: Tuple[str, ...] = ()
+
+    def is_auto_confirm(self) -> bool:
+        return str(self.confirm_mode or "").strip().lower() == "auto"
 
     @classmethod
     def from_dict(cls, raw: Any) -> "GraphNodeExpandConfig":
         if not isinstance(raw, dict):
             return cls()
+        catalog_raw = raw.get("catalog_templates")
+        catalog: Tuple[str, ...] = ()
+        if isinstance(catalog_raw, list):
+            catalog = tuple(str(x).strip() for x in catalog_raw if str(x).strip())
         return cls(
             source_node_id=str(raw.get("source_node_id") or "").strip(),
             merge_label=str(raw.get("merge_label") or "任务汇聚").strip() or "任务汇聚",
+            mode=str(raw.get("mode") or "auto").strip().lower() or "auto",
+            confirm_mode=str(raw.get("confirm_mode") or "manual").strip().lower() or "manual",
+            default_lane_template_id=str(raw.get("default_lane_template_id") or "").strip(),
+            planner=str(raw.get("planner") or "source").strip().lower() or "source",
+            catalog_templates=catalog,
         )
 
     def to_dict(self) -> Dict[str, Any]:
         payload: Dict[str, Any] = {"merge_label": self.merge_label}
         if self.source_node_id:
             payload["source_node_id"] = self.source_node_id
+        if self.mode and self.mode != "auto":
+            payload["mode"] = self.mode
+        if self.confirm_mode and self.confirm_mode != "manual":
+            payload["confirm_mode"] = self.confirm_mode
+        if self.default_lane_template_id:
+            payload["default_lane_template_id"] = self.default_lane_template_id
+        if self.planner and self.planner != "source":
+            payload["planner"] = self.planner
+        if self.catalog_templates:
+            payload["catalog_templates"] = list(self.catalog_templates)
         return payload
 
 
@@ -320,6 +363,7 @@ class GraphNodeExecutor:
     agent_type: str = ""
     cli: Optional[GraphNodeCliConfig] = None
     expand: Optional[GraphNodeExpandConfig] = None
+    human: Optional[GraphNodeHumanConfig] = None
     registered_agent_id: str = ""
 
     @classmethod
@@ -343,8 +387,14 @@ class GraphNodeExecutor:
         )
 
     @classmethod
-    def from_human(cls) -> "GraphNodeExecutor":
-        return cls(kind=PLANNING_EXECUTOR_HUMAN, agent_type="", cli=None, expand=None)
+    def from_human(cls, human_cfg: Optional[GraphNodeHumanConfig] = None) -> "GraphNodeExecutor":
+        return cls(
+            kind=PLANNING_EXECUTOR_HUMAN,
+            agent_type="",
+            cli=None,
+            expand=None,
+            human=human_cfg or GraphNodeHumanConfig(),
+        )
 
     @classmethod
     def from_expand(cls, expand_cfg: Optional[GraphNodeExpandConfig] = None) -> "GraphNodeExecutor":
@@ -382,6 +432,10 @@ class GraphNodeExecutor:
             payload["cli"] = self.cli.to_dict()
         if self.expand is not None and self.kind == PLANNING_EXECUTOR_EXPAND:
             payload["expand"] = self.expand.to_dict()
+        if self.human is not None and self.kind == PLANNING_EXECUTOR_HUMAN:
+            human_dict = self.human.to_dict()
+            if human_dict:
+                payload["human"] = human_dict
         return payload
 
     @staticmethod
@@ -409,7 +463,7 @@ class GraphNodeExecutor:
         agent_id = str(raw.get("registered_agent_id") or "").strip()
         kind = str(raw.get("kind") or PLANNING_EXECUTOR_REACT).strip().lower()
         if kind == PLANNING_EXECUTOR_HUMAN:
-            return cls.from_human()
+            return cls.from_human(GraphNodeHumanConfig.from_dict(raw.get("human")))
         if kind == PLANNING_EXECUTOR_EXPAND:
             return cls.from_expand(GraphNodeExpandConfig.from_dict(raw.get("expand")))
         if kind == PLANNING_EXECUTOR_FORK:

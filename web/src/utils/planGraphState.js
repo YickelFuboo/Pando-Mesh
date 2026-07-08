@@ -90,12 +90,16 @@ export const NODE_VISUAL_LABELS = {
   ai_execute: 'AI执行类',
   ai_check: 'AI检查类',
   human_gate: '人工卡点类',
+  expand_gate: '扩展',
+  fork_gate: '分支汇聚类',
 }
 
-/** @returns {'ai_execute'|'ai_check'|'human_gate'} */
+/** @returns {'ai_execute'|'ai_check'|'human_gate'|'expand_gate'|'fork_gate'} */
 export function resolveNodeVisualType(node) {
   if (!node) return 'ai_execute'
   const kind = String(node.executor?.kind || 'cli').trim().toLowerCase()
+  if (kind === 'expand') return 'expand_gate'
+  if (kind === 'fork') return 'fork_gate'
   if (kind === 'human') return 'human_gate'
   if (normalizeNodeRole(node.node_role) === 'check') return 'ai_check'
   return 'ai_execute'
@@ -118,6 +122,8 @@ export function resolveGraphNodeDisplayAgent(graphSpec, nodeId) {
   const visual = resolveNodeVisualType(node)
   if (visual === 'human_gate') return '人工卡点'
   if (visual === 'ai_check') return 'AI检查'
+  if (visual === 'expand_gate') return '扩展'
+  if (visual === 'fork_gate') return '分支汇聚'
   return 'AI执行'
 }
 

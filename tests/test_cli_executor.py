@@ -196,7 +196,7 @@ class TestCliCommandBuild:
         )
         assert "--disallowedTools AskUserQuestion" in cmd
 
-    def test_multiline_task_with_p_uses_stdin_even_in_arg_mode(self):
+    def test_multiline_task_with_p_uses_stdin(self):
         cfg = GraphNodeCliConfig(
             commands=(
                 GraphNodeCliStep(
@@ -212,8 +212,28 @@ class TestCliCommandBuild:
         argv, stdin = CliNodeExecutor._build_exec_argv(
             cfg, step, variables, resume_session=False, with_session=True,
         )
-        assert argv == ["claude-code-best", "-p", "--output-format", "json", *_CLAUDE_DISALLOWED]
+        assert argv == [
+            "claude-code-best",
+            "-p",
+            "--output-format",
+            "json",
+            *_CLAUDE_DISALLOWED,
+        ]
         assert stdin == task
+
+    def test_single_line_task_with_p_uses_arg_after_p(self):
+        cfg = GraphNodeCliConfig(
+            commands=(GraphNodeCliStep(command="claude", args=("-p",)),),
+            input_mode="arg",
+        )
+        step = cfg.commands[0]
+        task = "单行任务"
+        variables = {"task": task, "cli_session_id": "", "workspace": "/ws"}
+        argv, stdin = CliNodeExecutor._build_exec_argv(
+            cfg, step, variables, resume_session=False, with_session=True,
+        )
+        assert argv == ["claude", "-p", task, *_CLAUDE_DISALLOWED]
+        assert stdin is None
 
     def test_stdin_input_mode(self):
         cfg = GraphNodeCliConfig(

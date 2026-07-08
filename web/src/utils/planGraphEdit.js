@@ -8,15 +8,19 @@ export const NODE_ROLE_LABELS = {
   execute: '执行类',
   check: '检查类',
 }
-export const NODE_VISUAL_TYPES = ['execute', 'check', 'human']
+export const NODE_VISUAL_TYPES = ['execute', 'check', 'human', 'expand', 'fork']
 export const NODE_VISUAL_TYPE_LABELS = {
   execute: 'AI执行类',
   check: 'AI检查类',
   human: '人工卡点类',
+  expand: '扩展类',
+  fork: '分支汇聚类',
 }
 
 export function normalizeNodeVisualType(raw) {
   const key = String(raw || '').trim().toLowerCase()
+  if (key === 'expand' || key === 'expand_gate') return 'expand'
+  if (key === 'fork' || key === 'fork_gate') return 'fork'
   if (key === 'human' || key === 'human_gate') return 'human'
   if (key === 'check') return 'check'
   return 'execute'
@@ -24,6 +28,8 @@ export function normalizeNodeVisualType(raw) {
 
 export function nodeVisualTypeFromNode(node) {
   const kind = String(node?.executor?.kind || '').trim().toLowerCase()
+  if (kind === 'expand') return 'expand'
+  if (kind === 'fork') return 'fork'
   if (kind === 'human') return 'human'
   if (normalizeNodeRole(node?.node_role) === 'check') return 'check'
   return 'execute'
@@ -33,17 +39,64 @@ export function syncFormFromNodeVisualType(form) {
   const next = { ...form }
   const visualType = normalizeNodeVisualType(next.nodeVisualType)
   next.nodeVisualType = visualType
+  if (visualType === 'expand') {
+    next.nodeRole = 'execute'
+    next.executorKind = 'expand'
+    next.registeredAgentId = ''
+    if (!String(next.expandMergeLabel || '').trim()) {
+      next.expandMergeLabel = '任务汇聚'
+    }
+    return next
+  }
+  if (visualType === 'fork') {
+    next.nodeRole = 'execute'
+    next.executorKind = 'fork'
+    next.registeredAgentId = ''
+    return next
+  }
   if (visualType === 'human') {
     next.nodeRole = 'execute'
     next.executorKind = 'human'
     next.registeredAgentId = ''
   } else {
     next.nodeRole = visualType === 'check' ? 'check' : 'execute'
-    if (next.executorKind === 'human') {
+    if (next.executorKind === 'human' || next.executorKind === 'expand' || next.executorKind === 'fork') {
       next.executorKind = 'cli'
     }
   }
   return next
+}
+
+export function buildHumanExecutorFromForm(form) {
+  const autoConfirm = Boolean(form.humanAutoConfirm)
+  return {
+    kind: 'human',
+    ...(autoConfirm ? { human: { auto_confirm: true } } : {}),
+  }
+}
+
+export function buildExpandExecutorFromForm(form) {
+  const defaultTemplate = String(form.expandDefaultLaneTemplateId || '').trim()
+  const catalogRaw = String(form.expandCatalogTemplatesText || '').trim()
+  const catalogTemplates = catalogRaw
+    ? catalogRaw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    : (defaultTemplate ? [defaultTemplate] : [])
+  const planner = String(form.expandPlanner || 'source').trim()
+  return {
+    kind: 'expand',
+    expand: {
+      ...(String(form.expandSourceNodeId || '').trim()
+        ? { source_node_id: String(form.expandSourceNodeId).trim() }
+        : {}),
+      merge_label: String(form.expandMergeLabel || '任务汇聚').trim() || '任务汇聚',
+      ...(planner && planner !== 'source' ? { planner } : {}),
+      ...(String(form.expandConfirmMode || 'manual').trim().toLowerCase() === 'auto'
+        ? { confirm_mode: 'auto' }
+        : {}),
+      ...(defaultTemplate ? { default_lane_template_id: defaultTemplate } : {}),
+      ...(catalogTemplates.length ? { catalog_templates: catalogTemplates } : {}),
+    },
+  }
 }
 
 export function usesRegisteredAgent(form) {
@@ -183,6 +236,9 @@ export function nodeToEditForm(node) {
   const expand = node?.executor?.expand && typeof node.executor.expand === 'object'
     ? node.executor.expand
     : {}
+  const human = node?.executor?.human && typeof node.executor.human === 'object'
+    ? node.executor.human
+    : {}
   const cli = node?.executor?.cli && typeof node.executor.cli === 'object'
     ? node.executor.cli
     : { ...DEFAULT_CLI_CONFIG }
@@ -203,6 +259,13 @@ export function nodeToEditForm(node) {
     agentType: String(node?.executor?.agent_type || node?.agent_type || '').trim(),
     expandSourceNodeId: String(expand.source_node_id || '').trim(),
     expandMergeLabel: String(expand.merge_label || '任务汇聚').trim(),
+    expandPlanner: String(expand.planner || 'source').trim(),
+    expandConfirmMode: String(expand.confirm_mode || 'manual').trim().toLowerCase() || 'manual',
+    humanAutoConfirm: Boolean(human.auto_confirm),
+    expandDefaultLaneTemplateId: String(expand.default_lane_template_id || '').trim(),
+    expandCatalogTemplatesText: Array.isArray(expand.catalog_templates)
+      ? expand.catalog_templates.join('\n')
+      : '',
     cliMode,
     cliCommand: String(firstStep?.command || 'claude').trim(),
     cliArgsText: formatCliArgsText(firstStep?.args),
@@ -233,7 +296,12 @@ export function editFormToNode(nodeId, form, originalNode = {}) {
   const visualType = normalizeNodeVisualType(form.nodeVisualType)
   if (visualType === 'human') {
     payload.node_role = 'execute'
-    payload.executor = { kind: 'human' }
+    payload.executor = buildHumanExecutorFromForm(form)
+    return payload
+  }
+  if (visualType === 'fork') {
+    payload.node_role = 'execute'
+    payload.executor = { kind: 'fork' }
     return payload
   }
   payload.node_role = visualType === 'check' ? 'check' : 'execute'
@@ -257,19 +325,9 @@ export function editFormToNode(nodeId, form, originalNode = {}) {
       payload.executor = { kind: 'cli', cli }
     }
   } else if (form.executorKind === 'human') {
-    payload.executor = { kind: 'human' }
-  } else if (form.executorKind === 'expand') {
-    payload.executor = usesRegisteredAgent(form)
-      ? buildRegisteredAgentExecutor(form)
-      : {
-          kind: 'expand',
-          expand: {
-            ...(String(form.expandSourceNodeId || '').trim()
-              ? { source_node_id: String(form.expandSourceNodeId).trim() }
-              : {}),
-            merge_label: String(form.expandMergeLabel || '任务汇聚').trim() || '任务汇聚',
-          },
-        }
+    payload.executor = buildHumanExecutorFromForm(form)
+  } else if (visualType === 'expand' || form.executorKind === 'expand') {
+    payload.executor = buildExpandExecutorFromForm(form)
   } else {
     payload.executor = usesRegisteredAgent(form)
       ? buildRegisteredAgentExecutor(form)
@@ -390,15 +448,24 @@ export function applyRegisteredAgentToForm(form, agent) {
   if (kind === 'human') {
     next.nodeVisualType = 'human'
     next.nodeRole = 'execute'
+    const human = executor.human && typeof executor.human === 'object' ? executor.human : {}
+    next.humanAutoConfirm = Boolean(human.auto_confirm)
     return next
   }
   if (next.nodeVisualType === 'human') {
     next.nodeVisualType = normalizeNodeRole(next.nodeRole) === 'check' ? 'check' : 'execute'
   }
   if (kind === 'expand') {
+    next.nodeVisualType = 'expand'
     const expand = executor.expand && typeof executor.expand === 'object' ? executor.expand : {}
     next.expandSourceNodeId = String(expand.source_node_id || '').trim()
     next.expandMergeLabel = String(expand.merge_label || '任务汇聚').trim()
+    next.expandPlanner = String(expand.planner || 'source').trim()
+    next.expandConfirmMode = String(expand.confirm_mode || 'manual').trim().toLowerCase() || 'manual'
+    next.expandDefaultLaneTemplateId = String(expand.default_lane_template_id || '').trim()
+    next.expandCatalogTemplatesText = Array.isArray(expand.catalog_templates)
+      ? expand.catalog_templates.join('\n')
+      : ''
     return next
   }
   const cli = executor.cli && typeof executor.cli === 'object' ? executor.cli : DEFAULT_CLI_CONFIG

@@ -49,6 +49,7 @@ class TemplateCreateRequest(BaseModel):
     description: str = ""
     user_goal: str = ""
     judge_mode: str = ""
+    category: str = ""
     graph: Optional[Dict[str, Any]] = None
 
 
@@ -57,6 +58,7 @@ class TemplateUpdateRequest(BaseModel):
     description: Optional[str] = None
     user_goal: Optional[str] = None
     judge_mode: Optional[str] = None
+    category: Optional[str] = None
     graph: Optional[Dict[str, Any]] = None
 
 
@@ -168,6 +170,7 @@ async def list_workspace_requirements(workspace_path: str):
         row["workflow_id"] = record.workflow_id if record else None
         row["has_session"] = record is not None
         row["running"] = _service.is_running(record.workflow_id) if record else False
+        row["plan_phase"] = record.plan_state.phase.value if record else "idle"
         payload.append(row)
     return payload
 
@@ -322,6 +325,7 @@ async def create_workflow_template(body: TemplateCreateRequest):
             description=body.description,
             user_goal=body.user_goal,
             judge_mode=body.judge_mode,
+            category=body.category,
             graph=body.graph,
         )
     except ValueError as e:
@@ -338,6 +342,7 @@ async def update_workflow_template(template_id: str, body: TemplateUpdateRequest
             description=body.description,
             user_goal=body.user_goal,
             judge_mode=body.judge_mode,
+            category=body.category,
             graph=body.graph,
         )
     except KeyError:
@@ -359,6 +364,7 @@ async def duplicate_workflow_template(template_id: str, body: TemplateDuplicateR
             description=src.description,
             user_goal=src.user_goal,
             judge_mode=src.judge_mode,
+            category=src.category,
             graph=src.graph,
             source_workflow_id=template_id,
         )
@@ -409,7 +415,7 @@ async def list_workflows():
 
 @router.get("/{workflow_id}", summary="获取工作流")
 async def get_workflow(workflow_id: str):
-    record = await _service.store.get(workflow_id)
+    record = await _service.get_workflow(workflow_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Workflow not found")
     return await _workflow_info(record)

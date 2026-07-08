@@ -22,6 +22,7 @@ class WorkflowTemplate:
     description: str = ""
     user_goal: str = ""
     judge_mode: str = ""
+    category: str = ""
     graph: Dict[str, Any] = field(default_factory=dict)
     source_workflow_id: str = ""
     created_at: str = field(default_factory=_now_iso)
@@ -34,6 +35,7 @@ class WorkflowTemplate:
             "description": self.description,
             "user_goal": self.user_goal,
             "judge_mode": self.judge_mode,
+            "category": self.category,
             "graph": dict(self.graph or {}),
             "source_workflow_id": self.source_workflow_id,
             "created_at": self.created_at,
@@ -50,6 +52,7 @@ class WorkflowTemplate:
             description=str(data.get("description") or ""),
             user_goal=str(data.get("user_goal") or ""),
             judge_mode=str(data.get("judge_mode") or ""),
+            category=str(data.get("category") or ""),
             graph=graph,
             source_workflow_id=str(data.get("source_workflow_id") or ""),
             created_at=str(data.get("created_at") or _now_iso()),
@@ -78,6 +81,7 @@ class WorkflowTemplateStore:
         description: str = "",
         user_goal: str = "",
         judge_mode: str = "",
+        category: str = "",
         graph: Optional[Dict[str, Any]] = None,
         source_workflow_id: str = "",
     ) -> WorkflowTemplate:
@@ -94,6 +98,7 @@ class WorkflowTemplateStore:
             description=description.strip(),
             user_goal=user_goal.strip(),
             judge_mode=judge_mode.strip(),
+            category=category.strip(),
             graph=graph_spec,
             source_workflow_id=source_workflow_id.strip(),
         )
@@ -143,6 +148,7 @@ class WorkflowTemplateStore:
         description: Optional[str] = None,
         user_goal: Optional[str] = None,
         judge_mode: Optional[str] = None,
+        category: Optional[str] = None,
         graph: Optional[Dict[str, Any]] = None,
     ) -> WorkflowTemplate:
         item = await self.get(template_id)
@@ -156,6 +162,8 @@ class WorkflowTemplateStore:
             item.user_goal = user_goal.strip()
         if judge_mode is not None:
             item.judge_mode = judge_mode.strip()
+        if category is not None:
+            item.category = category.strip()
         if graph is not None:
             parsed = DirectExecGraph.from_dict(graph)
             if parsed is None:

@@ -5,14 +5,24 @@
         <h2>Workflow 模板</h2>
         <p class="hint">模板定义通用编排；Session 通过「使用模板」引用，各 Session 仅 Workspace 不同。</p>
       </div>
-      <button type="button" class="btn btn-primary" @click="openCreate">新建模板</button>
+      <div class="toolbar-actions">
+        <div v-if="categoryOptions.length" class="filter-field">
+          <label for="tpl-category-filter">分类</label>
+          <select id="tpl-category-filter" v-model="categoryFilter">
+            <option value="">全部</option>
+            <option v-for="cat in categoryOptions" :key="cat" :value="cat">{{ cat }}</option>
+          </select>
+        </div>
+        <button type="button" class="btn btn-primary" @click="openCreate">新建模板</button>
+      </div>
     </div>
 
     <div v-if="loading" class="empty-state">加载中…</div>
     <div v-else-if="loadError" class="empty-state error">{{ loadError }}</div>
     <div v-else-if="!templates.length" class="empty-state">暂无模板，点击「新建模板」或从已有模板复制后编辑。</div>
+    <div v-else-if="!filteredTemplates.length" class="empty-state">当前分类下暂无模板。</div>
     <div v-else class="template-grid">
-      <article v-for="item in templates" :key="item.template_id" class="template-card">
+      <article v-for="item in filteredTemplates" :key="item.template_id" class="template-card">
         <header class="card-head">
           <div>
             <h3>{{ item.name }}</h3>
@@ -21,6 +31,7 @@
         </header>
         <p class="desc">{{ item.description || '无描述' }}</p>
         <div class="card-meta">
+          <span v-if="item.category" class="tag tag-category">{{ item.category }}</span>
           <span v-if="item.judge_mode" class="tag">Judge: {{ item.judge_mode }}</span>
           <span v-if="item.source_workflow_id" class="tag tag-src">复制来源</span>
         </div>
@@ -103,6 +114,16 @@
               <label for="tpl-goal">默认任务目标</label>
               <input id="tpl-goal" v-model="form.user_goal" type="text" :readonly="dialogMode === 'view'" />
             </div>
+            <div class="field">
+              <label for="tpl-category">分类</label>
+              <input
+                id="tpl-category"
+                v-model="form.category"
+                type="text"
+                placeholder="如：需求分析、编码实现、端到端"
+                :readonly="dialogMode === 'view'"
+              />
+            </div>
           </div>
           <div v-show="editorTab === 'graph'" class="tab-panel tab-panel-graph">
             <div class="graph-field graph-field-fill">
@@ -111,6 +132,8 @@
                 :graph-spec="graphSpec"
                 phase="idle"
                 fill-height
+                layout-size="comfortable"
+                :show-execute-button="false"
                 :editable="dialogMode !== 'view'"
                 @edit-node="openEditNode"
                 @edit-edge="openEditEdge"
@@ -197,6 +220,7 @@ import {
 const emit = defineEmits(['changed'])
 
 const templates = ref([])
+const categoryFilter = ref('')
 const loading = ref(false)
 const loadError = ref('')
 const editorDialogVisible = ref(false)
@@ -223,6 +247,22 @@ const form = reactive({
   description: '',
   user_goal: '',
   judge_mode: '',
+  category: '',
+})
+
+const categoryOptions = computed(() => {
+  const set = new Set()
+  for (const item of templates.value) {
+    const cat = String(item.category || '').trim()
+    if (cat) set.add(cat)
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'zh-CN'))
+})
+
+const filteredTemplates = computed(() => {
+  const filter = String(categoryFilter.value || '').trim()
+  if (!filter) return templates.value
+  return templates.value.filter((item) => String(item.category || '').trim() === filter)
 })
 
 const editorDialogTitle = computed(() => {
@@ -246,6 +286,7 @@ function resetForm() {
   form.description = ''
   form.user_goal = ''
   form.judge_mode = ''
+  form.category = ''
   graphSpec.value = cloneGraphSpec(defaultGraphSpec())
   errorMsg.value = ''
 }
@@ -255,6 +296,7 @@ function fillForm(item) {
   form.description = item.description || ''
   form.user_goal = item.user_goal || ''
   form.judge_mode = item.judge_mode || ''
+  form.category = item.category || ''
   graphSpec.value = cloneGraphSpec(item.graph || defaultGraphSpec())
   errorMsg.value = ''
 }
@@ -387,6 +429,7 @@ async function onSubmitEditor() {
       description: form.description.trim(),
       user_goal: form.user_goal.trim(),
       judge_mode: form.judge_mode || '',
+      category: form.category.trim(),
       graph: graphSpec.value || defaultGraphSpec(),
     }
     if (dialogMode.value === 'create') {
@@ -463,6 +506,27 @@ defineExpose({ refresh })
   border-radius: 8px;
   padding: 16px;
 }
+.toolbar-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.filter-field label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6368;
+}
+.filter-field select {
+  min-width: 140px;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #fff;
+}
 .panel-toolbar h2 {
   margin: 0 0 4px;
   font-size: 16px;
@@ -533,6 +597,10 @@ defineExpose({ refresh })
 .tag-src {
   background: #fef7e0;
   color: #b06000;
+}
+.tag-category {
+  background: #e8f0fe;
+  color: #1967d2;
 }
 .card-actions .btn {
   padding: 6px 10px;
@@ -645,6 +713,18 @@ defineExpose({ refresh })
 }
 .graph-field-fill :deep(.plan-graph-panel) {
   border-radius: 0;
+}
+.graph-field-fill :deep(.plan-graph-viewport) {
+  padding: 8px 16px 12px;
+}
+.graph-field-fill :deep(.plan-graph-toolbar) {
+  padding: 10px 48px 10px 14px;
+}
+.graph-field-fill :deep(.plan-graph-node-label) {
+  font-size: 12px;
+}
+.graph-field-fill :deep(.plan-graph-node-agent) {
+  font-size: 11px;
 }
 .editor-body .error-msg {
   padding: 8px 18px 0;

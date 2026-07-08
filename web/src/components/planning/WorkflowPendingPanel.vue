@@ -19,8 +19,20 @@
 
     <div v-else-if="mode === 'expand'" class="pending-card">
       <h3>任务分裂确认</h3>
-      <p class="pending-hint">上游步骤已产出 {{ tasks.length }} 个子任务，确认后将插入并行分支并继续执行。</p>
-      <ul class="task-list">
+      <p v-if="expandMode === 'lane'" class="pending-hint">
+        LLM 已规划 {{ lanes.length }} 条并行 Lane（模板子工作流），确认后将实例化拓扑并继续执行。
+      </p>
+      <p v-else class="pending-hint">
+        上游步骤已产出 {{ tasks.length }} 个子任务，确认后将插入并行分支并继续执行。
+      </p>
+      <ul v-if="expandMode === 'lane'" class="task-list">
+        <li v-for="(lane, idx) in lanes" :key="lane.id || idx">
+          <strong>{{ lane.label || lane.id || `Lane ${idx + 1}` }}</strong>
+          <span>模板: {{ lane.template_id || '—' }}</span>
+          <span v-if="laneSkipText(lane)">跳过: {{ laneSkipText(lane) }}</span>
+        </li>
+      </ul>
+      <ul v-else class="task-list">
         <li v-for="(task, idx) in tasks" :key="task.id || idx">
           <strong>{{ task.label || task.id || `任务 ${idx + 1}` }}</strong>
           <span>{{ task.task }}</span>
@@ -66,7 +78,14 @@ const visible = computed(() => Boolean(mode.value))
 
 const gateLabel = computed(() => props.pendingGate?.label || props.pendingGate?.node_id || '审查')
 const gateSummary = computed(() => props.pendingGate?.summary || '（无摘要）')
+const expandMode = computed(() => String(props.pendingExpand?.mode || 'task').trim().toLowerCase())
 const tasks = computed(() => (Array.isArray(props.pendingExpand?.tasks) ? props.pendingExpand.tasks : []))
+const lanes = computed(() => (Array.isArray(props.pendingExpand?.lanes) ? props.pendingExpand.lanes : []))
+
+function laneSkipText(lane) {
+  const skip = Array.isArray(lane?.skip_nodes) ? lane.skip_nodes : []
+  return skip.length ? skip.join(', ') : ''
+}
 </script>
 
 <style scoped>

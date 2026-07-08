@@ -19,7 +19,7 @@
       </button>
     </header>
 
-    <div v-show="activeTab === 'chat'" ref="scrollEl" class="chat-body">
+    <div v-show="activeTab === 'chat'" ref="scrollEl" class="chat-body" @scroll="onChatScroll">
       <div v-if="!chatItems.length && !loading" class="empty-hint">
         {{ emptyHint }}
       </div>
@@ -99,6 +99,22 @@ const activeTab = ref('chat')
 const chatItems = ref([])
 const inputLocal = ref('')
 const scrollEl = ref(null)
+const SCROLL_BOTTOM_THRESHOLD = 48
+const stickToBottom = ref(true)
+
+function isNearBottom(el) {
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= SCROLL_BOTTOM_THRESHOLD
+}
+
+function onChatScroll() {
+  stickToBottom.value = isNearBottom(scrollEl.value)
+}
+
+function scrollToBottomIfNeeded() {
+  if (!scrollEl.value || !stickToBottom.value) return
+  scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+}
 
 const nodeOutput = computed(() => {
   const nodeId = props.selectedNodeId
@@ -219,7 +235,7 @@ async function loadMessagesForView() {
   } finally {
     loading.value = false
     await nextTick()
-    if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+    scrollToBottomIfNeeded()
   }
 }
 
@@ -233,7 +249,15 @@ function submitInput() {
     emit('send', text)
   }
   inputLocal.value = ''
+  stickToBottom.value = true
 }
+
+watch(
+  () => [props.workflowId, props.selectedNodeId],
+  () => {
+    stickToBottom.value = true
+  },
+)
 
 watch(
   () => props.selectedNodeId,
