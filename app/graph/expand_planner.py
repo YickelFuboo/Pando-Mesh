@@ -7,9 +7,9 @@ from app.config.paths import resolve_data_dir
 from app.config.settings import settings
 from app.graph.node_config import GraphNodeExpandConfig
 from app.graph.plan_graph import DirectExecGraph, END_NODE, GraphNode, START_NODE
-from app.maas.fallback import call_with_llm_fallback
-from app.maas.chat_models.models_config import models_config
-from app.maas.prompts.prompt_template_load import get_prompt_template
+from app.llms.fallback import call_with_llm_fallback
+from app.llms.chat_models.models_config import models_config
+from app.llms.prompts.prompt_template_load import get_prompt_template
 from app.runtime.abort import RunAbortController
 from app.runtime.context import AgentContext
 from app.workspace.refs import expand_session_placeholders, expand_workspace_ref_paths

@@ -141,13 +141,13 @@ async def llm_status():
 
 @router.get("/meta/llm-config", summary="LLM 模型配置（API Key 已脱敏）")
 async def get_llm_config():
-    from app.maas.chat_models.models_config import models_config
+    from app.llms.chat_models.models_config import models_config
     return models_config.to_public_dict()
 
 
 @router.put("/meta/llm-config", summary="更新 LLM 模型配置")
 async def update_llm_config(body: LlmConfigUpdateRequest):
-    from app.maas.chat_models.models_config import models_config
+    from app.llms.chat_models.models_config import models_config
     try:
         return models_config.apply_update(body.config)
     except FileNotFoundError as e:

@@ -1,6 +1,6 @@
 import re
 from typing import Any, Dict, Optional, Tuple
-from app.common.json_utils import extract_json_object
+from app.utils import extract_json_object
 from app.graph.node_config import GraphNodeCliConfig, GraphNodeExecutor
 from app.graph.plan_graph import DirectExecGraph
 

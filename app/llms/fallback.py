@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from typing import Any, Awaitable, Callable, List, Optional, Tuple
-from app.maas.chat_models.client import ChatModel, create_chat_model
-from app.maas.chat_models.models_config import models_config
+from app.llms.chat_models.client import ChatModel, create_chat_model
+from app.llms.chat_models.models_config import models_config
 
 logger = logging.getLogger(__name__)
 

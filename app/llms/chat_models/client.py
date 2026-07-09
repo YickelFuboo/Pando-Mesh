@@ -1,7 +1,7 @@
 import logging
 from typing import Any, AsyncIterator, Dict, List, Optional
 from openai import AsyncOpenAI
-from app.maas.chat_models.models_config import models_config
+from app.llms.chat_models.models_config import models_config
 
 logger = logging.getLogger(__name__)
 

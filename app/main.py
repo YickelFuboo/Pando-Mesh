@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.maas.chat_models.models_config import models_config
+from app.llms.chat_models.models_config import models_config
 from app.third_agent.register.api import router as agents_router
 from app.session.api import router as workflows_router, recover_workflows_on_startup
 from app.config.settings import settings

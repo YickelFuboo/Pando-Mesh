@@ -1,5 +1,5 @@
 from app.graph.graph_parse import parse_planning_llm_response, prose_without_json_blob
-from app.common.json_utils import extract_json_object
+from app.utils import extract_json_object
 
 
 SAMPLE_GRAPH_JSON = """

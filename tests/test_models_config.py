@@ -1,6 +1,6 @@
 import json
 
-from app.maas.chat_models.models_config import API_KEY_MASK, ModelsConfig
+from app.llms.chat_models.models_config import API_KEY_MASK, ModelsConfig
 
 
 def test_apply_update_preserves_api_key_when_masked(tmp_path, monkeypatch):
@@ -22,7 +22,7 @@ def test_apply_update_preserves_api_key_when_masked(tmp_path, monkeypatch):
     }, ensure_ascii=False), encoding="utf-8")
 
     monkeypatch.setattr(
-        "app.maas.chat_models.models_config._models_path",
+        "app.llms.chat_models.models_config._models_path",
         lambda: path,
     )
     cfg = ModelsConfig()
@@ -64,7 +64,7 @@ def test_apply_update_writes_new_api_key(tmp_path, monkeypatch):
     }), encoding="utf-8")
 
     monkeypatch.setattr(
-        "app.maas.chat_models.models_config._models_path",
+        "app.llms.chat_models.models_config._models_path",
         lambda: path,
     )
     cfg = ModelsConfig()

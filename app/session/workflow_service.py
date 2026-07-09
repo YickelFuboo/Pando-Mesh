@@ -25,7 +25,7 @@ from app.session.plan_mode import PlanMode, normalize_plan_mode
 from app.session.session_plan import hydrate_session_graph
 from app.session.template_store import WorkflowTemplateStore, apply_template_to_record
 from app.session.workflow_store import WorkflowRecord, WorkflowStore
-from app.maas.chat_models.models_config import models_config
+from app.llms.chat_models.models_config import models_config
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class WorkflowService:
         return record
 
     def llm_status(self) -> Dict[str, Any]:
-        from app.maas.chat_models.models_config import _models_path
+        from app.llms.chat_models.models_config import _models_path
         return {
             "available": models_config.is_available(),
             "models_file": str(_models_path()),

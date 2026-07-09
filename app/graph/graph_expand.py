@@ -3,7 +3,7 @@ import re
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from app.common.json_utils import extract_json_object
+from app.utils import extract_json_object
 from app.config.paths import resolve_data_dir
 from app.config.settings import settings
 from app.graph.node_config import GraphNodeCliConfig, GraphNodeExecutor, PLANNING_EXECUTOR_CLI

@@ -1,6 +1,6 @@
 from collections.abc import Awaitable, Callable
 from typing import Dict, Optional
-from app.common.json_utils import extract_json_object
+from app.utils import extract_json_object
 from app.config.settings import settings
 from app.runtime.abort import RunAbortController
 from app.graph.plan_graph import EdgeCondition, GraphNode
