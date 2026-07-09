@@ -7,6 +7,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -384,6 +385,21 @@ class CliAgentExecutor(ThirdAgentExecutor):
         return path
 
     @staticmethod
+    def _safe_unlink_temp(path: Path) -> None:
+        if not path.exists():
+            return
+        for _ in range(3):
+            try:
+                path.unlink()
+                return
+            except PermissionError:
+                time.sleep(0.1)
+        try:
+            path.unlink()
+        except PermissionError:
+            pass
+
+    @staticmethod
     def _append_stdin_redirect(command: str, task_path: Path) -> str:
         return f'{command} < "{task_path}"'
 
@@ -417,7 +433,7 @@ class CliAgentExecutor(ThirdAgentExecutor):
                     timeout_sec,
                 )
             finally:
-                task_path.unlink(missing_ok=True)
+                CliAgentExecutor._safe_unlink_temp(task_path)
         proc = await asyncio.create_subprocess_exec(
             *argv,
             cwd=cwd,
@@ -488,7 +504,7 @@ class CliAgentExecutor(ThirdAgentExecutor):
             return stdout_bytes, stderr_bytes, proc.returncode or 0
         finally:
             if task_path is not None:
-                task_path.unlink(missing_ok=True)
+                CliAgentExecutor._safe_unlink_temp(task_path)
 
     @staticmethod
     async def _communicate_with_abort(

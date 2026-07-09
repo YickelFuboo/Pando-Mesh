@@ -237,6 +237,53 @@ def test_expand_lanes_skip_gate_ar_confirm(tmp_path):
     assert len(qc_nodes) == 1
 
 
+def test_expand_lanes_full_tpl_ar_to_code(tmp_path):
+    from app.config.paths import resolve_data_dir
+    from app.config.settings import settings
+
+    templates_root = resolve_data_dir(settings.data_dir) / "workflow_templates"
+    graph = _linear_graph()
+    new_graph, _fork_id = expand_lanes_into_graph(
+        graph,
+        expand_node_id="expand",
+        lanes=[
+            {
+                "id": "repo_pcf",
+                "label": "PCF 代码仓",
+                "template_id": "tpl_ar_to_code",
+                "placeholders": {
+                    "repo_id": "pcf",
+                    "requirement_id": "REQ-001",
+                },
+            },
+        ],
+        templates_root=templates_root,
+    )
+    assert new_graph.is_valid()
+    lane_nodes = [nid for nid in new_graph.nodes if nid.startswith("repo_pcf__")]
+    expected_suffixes = [
+        "step_scope_refine",
+        "step_codegen",
+        "step_code_qc",
+        "step_ut_generate",
+        "step_ut_execute",
+        "gate_delivery",
+    ]
+    for suffix in expected_suffixes:
+        matches = [nid for nid in lane_nodes if nid.endswith(suffix)]
+        assert len(matches) == 1, f"missing lane node {suffix}"
+    fork_edges = [
+        e for e in new_graph.edges
+        if e.from_id.startswith("fork_") and e.to_id.endswith("step_scope_refine")
+    ]
+    assert fork_edges
+    merge_edges = [
+        e for e in new_graph.edges
+        if e.from_id.endswith("gate_delivery") and e.to_id.startswith("merge_")
+    ]
+    assert merge_edges
+
+
 def test_expand_lanes_into_graph(tmp_path):
     templates_root = _lane_template_dir(tmp_path)
     graph = _linear_graph()
@@ -459,3 +506,8 @@ def test_tpl_ir_e2e_template_valid():
     expand_repo = graph.nodes.get("expand_repo")
     assert expand_repo is not None
     assert expand_repo.executor.expand.default_lane_template_id == "tpl_ar_to_code"
+    assert "step_scope_refine" not in graph.nodes
+    assert "step_code_qc" not in graph.nodes
+    assert "step_ut_generate" not in graph.nodes
+    assert "step_ut_execute" not in graph.nodes
+    assert "gate_code_delivery" not in graph.nodes

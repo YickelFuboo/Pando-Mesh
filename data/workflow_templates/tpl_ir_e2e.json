@@ -347,10 +347,7 @@
         "task": "请确认 Requirements 树中 SR 列表与 Features 树场景增删改是否正确",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "设计",
         "node_role": "execute"
@@ -361,72 +358,15 @@
         "task": "请确认 Requirements 树中 AR 与实现设计是否正确",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "设计",
         "node_role": "execute"
       },
       {
-        "id": "step_scope_refine",
-        "label": "⑰ 变更范围细化",
-        "task": "请使用 {workspace}/skills/07-fwd-change-scope-refinement 这个 skill，将 {requirement_id} 的实现设计细化为代码仓/文件/函数级变更范围",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "开发",
-        "node_role": "execute",
-        "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
-          "requirements/{requirement_id}/architecture_changes/{*}/{*}.md"
-        ],
-        "output_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/overview.md",
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md"
-        ]
-      },
-      {
         "id": "expand_repo",
         "label": "⑫ REPO 并行扩展",
-        "task": "根据 repo_changes 下各代码仓目录（含 implementation_design.md），为每个代码仓选择 tpl_ar_to_code 模板生成并行 Lane。placeholders 需包含 branch_id、repo_id（目录名）。E2E 中须在 skip_nodes 加入 step_scope_refine、step_code_qc、step_ut_generate、step_ut_execute、gate_delivery，仅保留 step_codegen。",
+        "task": "根据 repo_changes 下各代码仓目录（含 implementation_design.md），为每个代码仓选择 tpl_ar_to_code 模板生成并行 Lane，完整克隆子模板全部步骤（变更范围细化→编码→合规→UT→交付确认）。placeholders 需包含 branch_id、repo_id（目录名）。无特殊原因不要设置 skip_nodes。",
         "max_iterations": 1,
         "executor": {
           "kind": "expand",
@@ -446,172 +386,6 @@
           "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
           "requirements/{requirement_id}/repo_changes/overview.md"
         ]
-      },
-      {
-        "id": "step_code_qc",
-        "label": "⑳ 代码合规检查",
-        "task": "请使用 {workspace}/skills/09-fwd-code-compliance-check 这个 skill，检查 {requirement_id} 相关代码变更的合规性",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "开发",
-        "node_role": "check",
-        "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/overview.md"
-        ]
-      },
-      {
-        "id": "step_ut_generate",
-        "label": "㉑ 单元测试生成",
-        "task": "请使用 {workspace}/skills/10-fwd-ut-generate 这个 skill，基于 {requirement_id} 的代码变更与实现设计生成单元测试代码，覆盖正常/异常/边界路径",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "开发",
-        "node_role": "execute",
-        "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/{*}/implementation_design.md",
-          "requirements/{requirement_id}/repo_changes/overview.md",
-          "requirements/{requirement_id}/test_changes/test_points.md"
-        ]
-      },
-      {
-        "id": "step_ut_execute",
-        "label": "㉒ UT 执行与覆盖率",
-        "task": "请使用 {workspace}/skills/11-fwd-ut-execute-coverage 这个 skill，编译并执行 {requirement_id} 相关单元测试，收集覆盖率并输出执行报告",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "cli",
-          "registered_agent_id": "claude_code",
-          "cli": {
-            "input": "arg",
-            "cwd": "{workspace}",
-            "timeout_sec": 3600,
-            "env": {},
-            "output_mode": "json",
-            "result_json_key": "result",
-            "session": {
-              "enabled": true,
-              "resume_args": [
-                "--resume",
-                "{cli_session_id}"
-              ],
-              "read_session_id_from_json": true,
-              "session_id_json_key": "session_id",
-              "history": {
-                "provider": "claude_code_jsonl",
-                "config_dir": "~/.claude"
-              }
-            },
-            "commands": [
-              {
-                "command": "claude",
-                "args": [
-                  "-p",
-                  "--output-format",
-                  "json",
-                  "--dangerously-skip-permissions",
-                  "--disallowedTools",
-                  "AskUserQuestion"
-                ]
-              }
-            ]
-          }
-        },
-        "phase": "开发",
-        "node_role": "check",
-        "input_doc_paths": [
-          "requirements/{requirement_id}/repo_changes/overview.md"
-        ],
-        "output_doc_paths": [
-          "requirements/{requirement_id}/test_changes/ut_execution_report.md"
-        ]
-      },
-      {
-        "id": "gate_code_delivery",
-        "label": "㉓ 代码交付确认",
-        "task": "请确认各代码仓变更与 UT 执行结果是否满足 {requirement_id} 验收标准",
-        "max_iterations": 3,
-        "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
-        },
-        "phase": "开发",
-        "node_role": "execute"
       },
       {
         "id": "step_repo_deps",
@@ -780,10 +554,7 @@
         "task": "请确认多仓编译日志、版本包清单与代码阶段门禁结果",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "开发",
         "node_role": "execute"
@@ -1008,10 +779,7 @@
         "task": "请确认测试用例、回归清单、自动化脚本与环境拓扑是否就绪",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "测试",
         "node_role": "execute"
@@ -1022,10 +790,7 @@
         "task": "请按 env_topology.yaml 部署版本包，执行 regression_test_list 所列 IT/E2E 用例，并将结果写入 test_execution_report.md",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "测试",
         "node_role": "execute"
@@ -1353,10 +1118,7 @@
         "task": "请确认 {requirement_id} 交付报告、质量度量、加固建议与测试门禁结果，判定是否可发布",
         "max_iterations": 3,
         "executor": {
-          "kind": "human",
-          "human": {
-            "auto_confirm": true
-          }
+          "kind": "human"
         },
         "phase": "测试",
         "node_role": "execute"
@@ -1425,7 +1187,7 @@
       },
       {
         "from": "gate_ar_confirm",
-        "to": "step_scope_refine",
+        "to": "expand_repo",
         "condition": "pass"
       },
       {
@@ -1434,49 +1196,9 @@
         "condition": "reject"
       },
       {
-        "from": "step_scope_refine",
-        "to": "expand_repo",
-        "condition": "always"
-      },
-      {
         "from": "expand_repo",
-        "to": "step_code_qc",
-        "condition": "always"
-      },
-      {
-        "from": "step_code_qc",
-        "to": "step_ut_generate",
-        "condition": "pass"
-      },
-      {
-        "from": "step_code_qc",
-        "to": "expand_repo",
-        "condition": "reject"
-      },
-      {
-        "from": "step_ut_generate",
-        "to": "step_ut_execute",
-        "condition": "always"
-      },
-      {
-        "from": "step_ut_execute",
-        "to": "gate_code_delivery",
-        "condition": "pass"
-      },
-      {
-        "from": "step_ut_execute",
-        "to": "step_ut_generate",
-        "condition": "reject"
-      },
-      {
-        "from": "gate_code_delivery",
         "to": "step_repo_deps",
-        "condition": "pass"
-      },
-      {
-        "from": "gate_code_delivery",
-        "to": "expand_repo",
-        "condition": "reject"
+        "condition": "always"
       },
       {
         "from": "step_repo_deps",
@@ -1598,5 +1320,5 @@
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-07 21:59:11"
+  "updated_at": "2026-07-09 14:47:46"
 }

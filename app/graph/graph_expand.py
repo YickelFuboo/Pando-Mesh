@@ -326,6 +326,13 @@ def _clone_lane_subgraph(
         new_nodes[new_id] = node
 
     entry_id = id_map.get(lane_graph.entry_node_id, "")
+    if not entry_id and lane_graph.entry_node_id in skip_set:
+        _, bridged = _resolve_skip_bridge(lane_graph.entry_node_id, EdgeCondition.ALWAYS)
+        if bridged:
+            entry_id = bridged[0]
+            if lane_label and entry_id in new_nodes:
+                node = new_nodes[entry_id]
+                node.label = f"{lane_label} · {node.label}" if node.label else lane_label
     if not entry_id:
         raise ValueError(f"Lane 入口无效: {branch_id}")
 
