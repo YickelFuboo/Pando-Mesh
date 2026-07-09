@@ -73,7 +73,7 @@ import {
   normalizeElementRow,
 } from '../../utils/architectureTreeModel.js'
 
-const TREE_PANE_WIDTH_KEY = 'pando_mesh_architectures_tree_width'
+const TREE_PANE_WIDTH_KEY = 'moma_developer_architectures_tree_width'
 const TREE_PANE_MIN_W = 220
 const TREE_PANE_MAX_W = 560
 const TREE_PANE_DEFAULT_W = 300

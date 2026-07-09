@@ -11,7 +11,7 @@
       <div class="header-start">
         <div class="header-brand">
           <span class="brand-mark" aria-hidden="true">P</span>
-          <h1>Pando-Mesh</h1>
+          <h1>MOMA-Developer</h1>
         </div>
         <nav class="header-nav" role="tablist">
           <button
@@ -474,11 +474,11 @@ import {
   initWorkflowFromTemplate,
 } from './api/layerApi.js'
 
-const WORKSPACE_STORAGE_KEY = 'pando_mesh_workspace_path'
-const DEFAULT_TEMPLATE_STORAGE_KEY = 'pando_mesh_default_template_id'
-const PLAN_MODE_STORAGE_KEY = 'pando_mesh_plan_mode'
-const SIDEBAR_WIDTH_STORAGE_KEY = 'pando_mesh_sidebar_width'
-const SIDEBAR_COLLAPSED_STORAGE_KEY = 'pando_mesh_sidebar_collapsed'
+const WORKSPACE_STORAGE_KEY = 'moma_developer_workspace_path'
+const DEFAULT_TEMPLATE_STORAGE_KEY = 'moma_developer_default_template_id'
+const PLAN_MODE_STORAGE_KEY = 'moma_developer_plan_mode'
+const SIDEBAR_WIDTH_STORAGE_KEY = 'moma_developer_sidebar_width'
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'moma_developer_sidebar_collapsed'
 const SIDEBAR_MIN_W = 220
 const SIDEBAR_MAX_W = 560
 const SIDEBAR_DEFAULT_W = 280

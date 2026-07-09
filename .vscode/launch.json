@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Pando-Mesh API (Debug)",
+      "name": "MOMA-Developer API (Debug)",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/start.py",
@@ -27,7 +27,7 @@
       "justMyCode": true
     },
     {
-      "name": "Pando-Mesh Web (Vite)",
+      "name": "MOMA-Developer Web (Vite)",
       "type": "node",
       "request": "launch",
       "preLaunchTask": "free-port-5174",
@@ -39,10 +39,10 @@
   ],
   "compounds": [
     {
-      "name": "Pando-Mesh 全栈 (API + Web)",
+      "name": "MOMA-Developer 全栈 (API + Web)",
       "configurations": [
-        "Pando-Mesh API (Debug)",
-        "Pando-Mesh Web (Vite)"
+        "MOMA-Developer API (Debug)",
+        "MOMA-Developer Web (Vite)"
       ],
       "stopAll": true
     }

@@ -46,6 +46,20 @@ class WorkflowService:
     def store(self) -> WorkflowStore:
         return self._store
 
+    async def recover_interrupted_workflows(self) -> int:
+        """启动时修复因进程退出而中断的工作流，避免 resume 失效的 CLI session。"""
+        recovered = 0
+        for record in await self._store.list_all():
+            if not record.plan_state.recover_after_interrupted_run():
+                continue
+            await self._store.save(record)
+            recovered += 1
+            logger.info(
+                "Recovered interrupted workflow %s (cleared stale CLI sessions)",
+                record.workflow_id,
+            )
+        return recovered
+
     async def _load_record(self, workflow_id: str) -> Optional[WorkflowRecord]:
         record = await self._store.get(workflow_id)
         if record is None:
@@ -340,7 +354,7 @@ class WorkflowService:
     ) -> None:
         plan_state = record.plan_state
         if clear_history and not start_node_id:
-            plan_state.clear_history(clear_session_id=False)
+            plan_state.clear_history()
         elif start_node_id:
             graph = plan_state.resolve_graph()
             if graph and not graph.is_entry_node(start_node_id):

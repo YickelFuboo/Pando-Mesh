@@ -98,7 +98,7 @@ def default_cli_executor_dict() -> Dict[str, Any]:
 
 
 def normalize_graph_cli_executors(graph: DirectExecGraph) -> DirectExecGraph:
-    """将 LLM 生成的 react 节点转为默认 CLI 配置（Pando-Mesh 以 CLI 为主）。"""
+    """将 LLM 生成的 react 节点转为默认 CLI 配置（MOMA-Developer 以 CLI 为主）。"""
     default_cli = GraphNodeCliConfig.from_dict(default_cli_executor_dict()["cli"])
     if default_cli is None:
         return graph

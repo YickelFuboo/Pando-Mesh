@@ -22,6 +22,10 @@ _service = WorkflowService()
 _template_store = WorkflowTemplateStore()
 
 
+async def recover_workflows_on_startup() -> None:
+    await _service.recover_interrupted_workflows()
+
+
 class WorkflowCreateRequest(BaseModel):
     name: str = ""
     description: str = ""

@@ -1,6 +1,5 @@
 import pytest
-from app.graph.plan_graph import END_NODE, START_NODE
-from app.graph.plan_graph import PlanGraphPhase, PlanGraphState
+from app.graph.plan_graph import END_NODE, START_NODE, PlanGraphPhase, PlanGraphState
 from app.session.template_store import (
     WorkflowTemplateStore,
     apply_template_to_record,
@@ -167,3 +166,24 @@ async def test_create_session_applies_template_graph(tmp_path, sample_graph):
     assert graph is not None
     assert len(graph.nodes) == 1
     assert loaded.judge_mode == "auto"
+
+
+@pytest.mark.asyncio
+async def test_recover_interrupted_workflows_on_startup(tmp_path):
+    wf_store = WorkflowStore(root_dir=str(tmp_path / "data"))
+    service = WorkflowService(store=wf_store)
+    record = await wf_store.create(name="中断恢复")
+    record.plan_state.phase = PlanGraphPhase.EXECUTING
+    record.plan_state.running_node_ids = ["step_a"]
+    record.plan_state.node_outputs = {"step_a": "partial"}
+    record.plan_state.node_session_id = {"step_a": "stale-session", "step_b": "keep-session"}
+    await wf_store.save(record)
+
+    recovered = await service.recover_interrupted_workflows()
+
+    assert recovered == 1
+    loaded = await wf_store.get(record.workflow_id)
+    assert loaded is not None
+    assert loaded.plan_state.phase == PlanGraphPhase.IDLE
+    assert loaded.plan_state.node_outputs == {"step_a": "partial"}
+    assert loaded.plan_state.node_session_id == {"step_b": "keep-session"}

@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "Pando-Mesh"
+name = "moma-developer"
 version = "0.1.0"
-description = "产 Agent 的 Mesh 层：多 Agent 注册、Workflow 编排与调度"
-authors = ["Pando Team"]
+description = "MOMA-Developer：多 Agent 编排与 AI 研发交付平台"
+authors = ["MOMA Team"]
 packages = [{include = "app"}]
 
 [tool.poetry.dependencies]

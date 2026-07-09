@@ -440,5 +440,19 @@ class PlanGraphState:
             return
         affected = {node_id} | graph.downstream(node_id)
         for nid in affected:
-            self.clear_node_execution_record(nid)
+            self.clear_node_execution_record(nid, clear_session_id=True)
         self.running_node_ids = []
+
+    def recover_after_interrupted_run(self) -> bool:
+        """服务重启后：EXECUTING 无法续跑，重置阶段并仅丢弃中断节点的 CLI session。
+
+        保留 node_outputs 等上游产出，便于从中间步骤续跑。
+        """
+        if self.phase != PlanGraphPhase.EXECUTING:
+            return False
+        interrupted = [nid.strip() for nid in self.running_node_ids if str(nid).strip()]
+        self.phase = PlanGraphPhase.IDLE
+        self.running_node_ids = []
+        for nid in interrupted:
+            self.node_session_id.pop(nid, None)
+        return True

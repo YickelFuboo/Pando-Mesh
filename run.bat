@@ -4,7 +4,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 
 if not exist "pyproject.toml" (
-    echo [error] 请在 Pando-Mesh 项目根目录运行 .\run.bat 或 .\run.ps1
+    echo [error] 请在 MOMA-Developer 项目根目录运行 .\run.bat 或 .\run.ps1
     exit /b 1
 )
 
@@ -68,10 +68,10 @@ if not exist "web\node_modules" (
 
 echo.
 echo [run] 启动后端 API  http://localhost:%SERVICE_PORT%
-start "Pando-Mesh API" cmd /k "cd /d %CD% && call .venv\Scripts\activate.bat && set SERVICE_PORT=%SERVICE_PORT% && python start.py"
+start "MOMA-Developer API" cmd /k "cd /d %CD% && call .venv\Scripts\activate.bat && set SERVICE_PORT=%SERVICE_PORT% && python start.py"
 
 echo [run] 启动编排 UI  http://localhost:%WEB_PORT%
-start "Pando-Mesh Web" cmd /k "cd /d %CD%\web && npm run dev -- --port %WEB_PORT% --host"
+start "MOMA-Developer Web" cmd /k "cd /d %CD%\web && npm run dev -- --port %WEB_PORT% --host"
 
 timeout /t 2 /nobreak >nul
 start "" "http://localhost:%WEB_PORT%"

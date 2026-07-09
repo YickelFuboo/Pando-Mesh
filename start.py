@@ -16,7 +16,7 @@ if __name__ == "__main__":
         if getattr(e, "winerror", None) == 10048 or e.errno == 10048:
             print(
                 f"[error] 端口 {settings.service_port} 已被占用。"
-                f"请先关闭 run.bat 启动的「Pando-Mesh API」窗口，"
+                f"请先关闭 run.bat 启动的「MOMA-Developer API」窗口，"
                 f"或在 VS Code 中使用带 preLaunchTask 的 Debug 配置。",
                 file=sys.stderr,
             )

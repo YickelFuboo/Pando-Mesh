@@ -5,7 +5,9 @@ import os
 import re
 import shlex
 import shutil
+import subprocess
 import sys
+import uuid
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from app.runtime.context import AgentContext, RuntimeContext
@@ -19,6 +21,10 @@ from app.workspace.refs import expand_session_placeholders
 _PLANNING_CLI_DISALLOWED_TOOLS: Tuple[str, ...] = ("AskUserQuestion",)
 _DISALLOWED_TOOLS_FLAGS = frozenset({"--disallowedTools", "--disallowed-tools"})
 _CLAUDE_CLI_NAME_RE = re.compile(r"claude", re.IGNORECASE)
+_STALE_CLI_RESUME_MARKERS: Tuple[str, ...] = (
+    "No deferred tool marker found in the resumed session",
+    "Input must be provided either through stdin or as a prompt argument when using --print",
+)
 
 
 class CliAgentExecutor(ThirdAgentExecutor):
@@ -42,6 +48,36 @@ class CliAgentExecutor(ThirdAgentExecutor):
         if cli_cfg.session.enabled:
             resume_session = bool(cli_session_id)
 
+        try:
+            return await cls._run_once(
+                request,
+                agent_ctx,
+                runtime_ctx,
+                cli_session_id=cli_session_id,
+                resume_session=resume_session,
+            )
+        except RuntimeError as exc:
+            if not resume_session or not cls._is_stale_cli_resume_error(exc):
+                raise
+            return await cls._run_once(
+                request,
+                agent_ctx,
+                runtime_ctx,
+                cli_session_id="",
+                resume_session=False,
+            )
+
+    @classmethod
+    async def _run_once(
+        cls,
+        request: AgentRunRequest,
+        agent_ctx: AgentContext,
+        runtime_ctx: RuntimeContext,
+        *,
+        cli_session_id: str,
+        resume_session: bool,
+    ) -> AgentRunResult:
+        cli_cfg = request.cli
         variables = cls._build_template_vars(
             request.task,
             agent_ctx,
@@ -55,6 +91,7 @@ class CliAgentExecutor(ThirdAgentExecutor):
             requirement_id=agent_ctx.requirement_id,
         )
         env = {**os.environ, **cli_cfg.env}
+        mode = cli_cfg.run_mode()
 
         if mode == "shell":
             stdout_bytes, stderr_bytes, returncode = await cls._run_shell_mode(
@@ -75,6 +112,11 @@ class CliAgentExecutor(ThirdAgentExecutor):
         )
         session_id = parsed_session_id if cli_cfg.session.enabled and parsed_session_id else None
         return AgentRunResult(result=result, session_id=session_id)
+
+    @staticmethod
+    def _is_stale_cli_resume_error(exc: BaseException) -> bool:
+        text = str(exc or "")
+        return any(marker in text for marker in _STALE_CLI_RESUME_MARKERS)
 
     @classmethod
     async def get_history(cls, request: AgentHistoryRequest):
@@ -335,6 +377,17 @@ class CliAgentExecutor(ThirdAgentExecutor):
         return resolved or cmd
 
     @staticmethod
+    def _write_stdin_temp_file(cwd: str, stdin_text: str) -> Path:
+        path = Path(cwd) / f".pando-cli-stdin-{uuid.uuid4().hex}.txt"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(stdin_text, encoding="utf-8")
+        return path
+
+    @staticmethod
+    def _append_stdin_redirect(command: str, task_path: Path) -> str:
+        return f'{command} < "{task_path}"'
+
+    @staticmethod
     async def _run_subprocess_exec(
         argv: List[str],
         cwd: str,
@@ -348,6 +401,23 @@ class CliAgentExecutor(ThirdAgentExecutor):
             raise ValueError("CLI argv 为空")
         argv = list(argv)
         argv[0] = CliAgentExecutor._resolve_executable(argv[0])
+        if stdin_text is not None and sys.platform == "win32":
+            task_path = CliAgentExecutor._write_stdin_temp_file(cwd, stdin_text)
+            try:
+                shell_cmd = CliAgentExecutor._append_stdin_redirect(
+                    subprocess.list2cmdline(argv),
+                    task_path,
+                )
+                return await CliAgentExecutor._run_subprocess_shell(
+                    shell_cmd,
+                    cwd,
+                    env,
+                    None,
+                    runtime_ctx,
+                    timeout_sec,
+                )
+            finally:
+                task_path.unlink(missing_ok=True)
         proc = await asyncio.create_subprocess_exec(
             *argv,
             cwd=cwd,
@@ -368,8 +438,9 @@ class CliAgentExecutor(ThirdAgentExecutor):
                 f"CLI 执行超时（{timeout_sec}s）：{' '.join(argv[:3])}…"
             ) from None
         except asyncio.CancelledError:
-            proc.kill()
-            await proc.wait()
+            if proc.returncode is None:
+                proc.kill()
+                await proc.wait()
             raise
         return stdout_bytes, stderr_bytes, proc.returncode or 0
 
@@ -383,31 +454,41 @@ class CliAgentExecutor(ThirdAgentExecutor):
         timeout_sec: int,
     ) -> Tuple[bytes, bytes, int]:
         """create_subprocess_shell 封装：Windows 用 COMSPEC，支持 stdin、超时与中止。"""
-        proc = await asyncio.create_subprocess_shell(
-            command,
-            cwd=cwd,
-            env=env,
-            stdin=asyncio.subprocess.PIPE if stdin_text is not None else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            executable=CliAgentExecutor._shell_executable(),
-        )
+        task_path: Optional[Path] = None
+        if stdin_text is not None and sys.platform == "win32":
+            task_path = CliAgentExecutor._write_stdin_temp_file(cwd, stdin_text)
+            command = CliAgentExecutor._append_stdin_redirect(command, task_path)
+            stdin_text = None
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                CliAgentExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
-                timeout=timeout_sec,
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                cwd=cwd,
+                env=env,
+                stdin=asyncio.subprocess.PIPE if stdin_text is not None else None,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                executable=CliAgentExecutor._shell_executable(),
             )
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
-            raise RuntimeError(
-                f"CLI 执行超时（{timeout_sec}s）：{command[:120]}…"
-            ) from None
-        except asyncio.CancelledError:
-            proc.kill()
-            await proc.wait()
-            raise
-        return stdout_bytes, stderr_bytes, proc.returncode or 0
+            try:
+                stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                    CliAgentExecutor._communicate_with_abort(proc, stdin_text, runtime_ctx),
+                    timeout=timeout_sec,
+                )
+            except asyncio.TimeoutError:
+                proc.kill()
+                await proc.wait()
+                raise RuntimeError(
+                    f"CLI 执行超时（{timeout_sec}s）：{command[:120]}…"
+                ) from None
+            except asyncio.CancelledError:
+                if proc.returncode is None:
+                    proc.kill()
+                    await proc.wait()
+                raise
+            return stdout_bytes, stderr_bytes, proc.returncode or 0
+        finally:
+            if task_path is not None:
+                task_path.unlink(missing_ok=True)
 
     @staticmethod
     async def _communicate_with_abort(

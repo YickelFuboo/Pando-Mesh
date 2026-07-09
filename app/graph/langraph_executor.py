@@ -85,7 +85,7 @@ class LangGraphRunState(TypedDict, total=False):
     node_outputs: Annotated[Dict[str, str], _merge_str_dict]
     pre_node_reject_infos: Annotated[Dict[str, str], _merge_str_dict]
     node_iterations: Annotated[Dict[str, int], _merge_int_dict]
-    last_route: str
+    node_routes: Annotated[Dict[str, str], _merge_str_dict]
     summary_parts: Annotated[List[str], operator.add]
     aborted: bool
     error_message: str
@@ -150,7 +150,7 @@ class LangGraphExecutor:
             "node_outputs": dict(plan_graph.node_outputs),
             "pre_node_reject_infos": dict(plan_graph.pre_node_reject_infos),
             "node_iterations": dict(plan_graph.node_iterations),
-            "last_route": EdgeCondition.ALWAYS.value,
+            "node_routes": {},
             "summary_parts": [],
             "aborted": False,
             "error_message": "",
@@ -223,7 +223,9 @@ class LangGraphExecutor:
                 if run_state.get("aborted"):
                     return END
                 try:
-                    cond = EdgeCondition(run_state.get("last_route") or EdgeCondition.ALWAYS.value)
+                    routes = run_state.get("node_routes") or {}
+                    route_value = routes.get(node_id) or EdgeCondition.ALWAYS.value
+                    cond = EdgeCondition(route_value)
                 except ValueError:
                     cond = EdgeCondition.ALWAYS
                 next_ids = graph.resolve_next_node_ids(node_id, cond)
@@ -457,13 +459,15 @@ class LangGraphExecutor:
                     f"步骤「{graph_node.label}」已完成。\n\n{done_snippet}",
                 )
 
-        return {
+        result: LangGraphRunState = {
             "node_outputs": {current_node_id: output},
             "node_iterations": {current_node_id: node_iterations},
             "pre_node_reject_infos": pre_node_reject_infos,
-            "last_route": last_route,
             "summary_parts": [f"### {graph_node.label}\n{output[:2000]}"],
         }
+        if graph.has_review_outgoing_edges(current_node_id):
+            result["node_routes"] = {current_node_id: last_route}
+        return result
 
     @staticmethod
     async def _emit_runtime_message(runtime_ctx: RuntimeContext, msg: Message) -> None:
@@ -541,7 +545,7 @@ class LangGraphExecutor:
         if not graph_node.is_cli():
             raise ValueError(
                 f"节点「{graph_node.label or graph_node.id}」未配置 CLI 执行器；"
-                "Pando-Mesh 仅支持 CLI 节点（Claude Code、Codex 等）。"
+                "MOMA-Developer 仅支持 CLI 节点（Claude Code、Codex 等）。"
             )
 
         text_task = LangGraphExecutor._build_cli_task(

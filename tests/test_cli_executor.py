@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, patch
 
 from app.third_agent.executor.cli import CliAgentExecutor
 from app.third_agent.executor.types import AgentRunRequest
-from app.graph.plan_graph import PLAN_GRAPH_METADATA_KEY, GraphNode, PlanGraphState
+from app.graph.plan_graph import PLAN_GRAPH_METADATA_KEY, GraphNode, PlanGraphPhase, PlanGraphState
 from app.graph.node_config import (
     GraphNodeCliConfig,
     GraphNodeCliStep,
@@ -66,6 +66,27 @@ class TestCliSessionPersistence:
         state = PlanGraphState(node_session_id={"step_a": "cli-sess-1"})
         state.clear_history()
         assert state.node_session_id == {}
+
+    def test_recover_after_interrupted_run_clears_stale_cli_sessions(self):
+        state = PlanGraphState(
+            phase=PlanGraphPhase.EXECUTING,
+            running_node_ids=["step_a"],
+            node_outputs={"step_a": "done", "step_b": "upstream"},
+            node_session_id={"step_a": "cli-sess-1", "step_b": "cli-sess-2"},
+        )
+        assert state.recover_after_interrupted_run() is True
+        assert state.phase == PlanGraphPhase.IDLE
+        assert state.running_node_ids == []
+        assert state.node_outputs == {"step_a": "done", "step_b": "upstream"}
+        assert state.node_session_id == {"step_b": "cli-sess-2"}
+
+    def test_recover_after_interrupted_run_noop_when_idle(self):
+        state = PlanGraphState(
+            phase=PlanGraphPhase.IDLE,
+            node_session_id={"step_a": "cli-sess-1"},
+        )
+        assert state.recover_after_interrupted_run() is False
+        assert state.node_session_id == {"step_a": "cli-sess-1"}
 
 
 class TestCliCommandBuild:
@@ -368,7 +389,7 @@ class TestCliAgentExecutorRun:
                     b"",
                 )
             )
-            with patch(
+            with patch("sys.platform", "linux"), patch(
                 "app.third_agent.executor.cli.asyncio.create_subprocess_exec",
                 new=AsyncMock(return_value=mock_proc),
             ), patch(
@@ -384,6 +405,47 @@ class TestCliAgentExecutorRun:
         run_result = asyncio.run(_run())
         assert run_result.result == "done"
         assert run_result.session_id == "from-cli-99"
+
+    def test_windows_multiline_task_redirects_stdin_via_temp_file(self, tmp_path):
+        captured: dict = {}
+
+        async def fake_shell(command, cwd, env, stdin_text, runtime_ctx, timeout_sec):
+            captured["command"] = command
+            captured["stdin_text"] = stdin_text
+            return b'{"result":"ok"}', b"", 0
+
+        cfg = GraphNodeCliConfig(
+            commands=(
+                GraphNodeCliStep(
+                    command="claude",
+                    args=("-p", "--output-format", "json"),
+                ),
+            ),
+            input_mode="arg",
+            output_mode="json",
+        )
+        request = AgentRunRequest(task="line1\nline2", cli=cfg, node_id="step_a")
+        agent_ctx = AgentContext(workspace_path=str(tmp_path))
+        runtime_ctx = RuntimeContext()
+
+        async def _run():
+            with patch("sys.platform", "win32"), patch.object(
+                CliAgentExecutor,
+                "_run_subprocess_shell",
+                side_effect=fake_shell,
+            ), patch.object(
+                CliAgentExecutor,
+                "_resolve_executable",
+                return_value="claude.exe",
+            ):
+                return await CliAgentExecutor.run(request, agent_ctx, runtime_ctx)
+
+        result = asyncio.run(_run())
+        assert result.result == "ok"
+        assert captured["stdin_text"] is None
+        assert ".pando-cli-stdin-" in captured["command"]
+        assert "<" in captured["command"]
+        assert "line1" not in captured["command"]
 
 
 class TestCliSessionPlaceholders:
