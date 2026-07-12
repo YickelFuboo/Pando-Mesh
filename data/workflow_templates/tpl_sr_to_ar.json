@@ -23,7 +23,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -75,7 +78,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -125,7 +131,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -175,7 +184,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -218,18 +230,60 @@
       }
     ],
     "edges": [
-      { "from": "START", "to": "step_arch_impact", "condition": "always" },
-      { "from": "step_arch_impact", "to": "step_interface", "condition": "always" },
-      { "from": "step_interface", "to": "step_logic_design", "condition": "always" },
-      { "from": "step_logic_design", "to": "step_arch_qc", "condition": "always" },
-      { "from": "step_arch_qc", "to": "gate_ar_confirm", "condition": "pass" },
-      { "from": "step_arch_qc", "to": "step_arch_impact", "condition": "reject" },
-      { "from": "gate_ar_confirm", "to": "END", "condition": "pass" },
-      { "from": "gate_ar_confirm", "to": "step_arch_impact", "condition": "reject" }
+      {
+        "from": "START",
+        "to": "step_arch_impact",
+        "condition": "always"
+      },
+      {
+        "from": "step_arch_impact",
+        "to": "step_interface",
+        "condition": "always"
+      },
+      {
+        "from": "step_interface",
+        "to": "step_logic_design",
+        "condition": "always"
+      },
+      {
+        "from": "step_logic_design",
+        "to": "step_arch_qc",
+        "condition": "always"
+      },
+      {
+        "from": "step_arch_qc",
+        "to": "gate_ar_confirm",
+        "condition": "pass"
+      },
+      {
+        "from": "step_arch_qc",
+        "to": "step_arch_impact",
+        "condition": "reject"
+      },
+      {
+        "from": "gate_ar_confirm",
+        "to": "END",
+        "condition": "pass"
+      },
+      {
+        "from": "gate_ar_confirm",
+        "to": "step_arch_impact",
+        "condition": "reject"
+      }
     ],
     "entry": "step_arch_impact"
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-06 22:15:00"
+  "updated_at": "2026-07-06 22:15:00",
+  "category": "正向",
+  "subject_schema": {
+    "kind": "requirement",
+    "granularity": "sr",
+    "required_placeholders": [
+      "requirement_id",
+      "sr_id",
+      "sr_doc"
+    ]
+  }
 }

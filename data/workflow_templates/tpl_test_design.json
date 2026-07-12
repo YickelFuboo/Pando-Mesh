@@ -98,16 +98,49 @@
       }
     ],
     "edges": [
-      { "from": "START", "to": "step_test_case", "condition": "always" },
-      { "from": "step_test_case", "to": "step_regression_select", "condition": "always" },
-      { "from": "step_regression_select", "to": "step_test_script", "condition": "always" },
-      { "from": "step_test_script", "to": "step_env_topology", "condition": "always" },
-      { "from": "step_env_topology", "to": "gate_test_design_confirm", "condition": "always" },
-      { "from": "gate_test_design_confirm", "to": "END", "condition": "pass" },
-      { "from": "gate_test_design_confirm", "to": "step_test_case", "condition": "reject" }
+      {
+        "from": "START",
+        "to": "step_test_case",
+        "condition": "always"
+      },
+      {
+        "from": "step_test_case",
+        "to": "step_regression_select",
+        "condition": "always"
+      },
+      {
+        "from": "step_regression_select",
+        "to": "step_test_script",
+        "condition": "always"
+      },
+      {
+        "from": "step_test_script",
+        "to": "step_env_topology",
+        "condition": "always"
+      },
+      {
+        "from": "step_env_topology",
+        "to": "gate_test_design_confirm",
+        "condition": "always"
+      },
+      {
+        "from": "gate_test_design_confirm",
+        "to": "END",
+        "condition": "pass"
+      },
+      {
+        "from": "gate_test_design_confirm",
+        "to": "step_test_case",
+        "condition": "reject"
+      }
     ]
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-04 15:20:00"
+  "updated_at": "2026-07-04 15:20:00",
+  "category": "正向",
+  "subject_schema": {
+    "kind": "requirement",
+    "granularity": "ir"
+  }
 }

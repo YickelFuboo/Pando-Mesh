@@ -144,21 +144,74 @@
       }
     ],
     "edges": [
-      { "from": "START", "to": "gate_it_exec", "condition": "always" },
-      { "from": "gate_it_exec", "to": "step_failure_analysis", "condition": "pass" },
-      { "from": "step_failure_analysis", "to": "step_artifact_verify", "condition": "always" },
-      { "from": "step_artifact_verify", "to": "step_quality_metrics", "condition": "pass" },
-      { "from": "step_artifact_verify", "to": "gate_it_exec", "condition": "reject" },
-      { "from": "step_quality_metrics", "to": "step_hardening", "condition": "always" },
-      { "from": "step_hardening", "to": "step_delivery_report", "condition": "always" },
-      { "from": "step_delivery_report", "to": "step_test_gate", "condition": "always" },
-      { "from": "step_test_gate", "to": "gate_delivery_final", "condition": "pass" },
-      { "from": "step_test_gate", "to": "step_quality_metrics", "condition": "reject" },
-      { "from": "gate_delivery_final", "to": "END", "condition": "pass" },
-      { "from": "gate_delivery_final", "to": "step_delivery_report", "condition": "reject" }
+      {
+        "from": "START",
+        "to": "gate_it_exec",
+        "condition": "always"
+      },
+      {
+        "from": "gate_it_exec",
+        "to": "step_failure_analysis",
+        "condition": "pass"
+      },
+      {
+        "from": "step_failure_analysis",
+        "to": "step_artifact_verify",
+        "condition": "always"
+      },
+      {
+        "from": "step_artifact_verify",
+        "to": "step_quality_metrics",
+        "condition": "pass"
+      },
+      {
+        "from": "step_artifact_verify",
+        "to": "gate_it_exec",
+        "condition": "reject"
+      },
+      {
+        "from": "step_quality_metrics",
+        "to": "step_hardening",
+        "condition": "always"
+      },
+      {
+        "from": "step_hardening",
+        "to": "step_delivery_report",
+        "condition": "always"
+      },
+      {
+        "from": "step_delivery_report",
+        "to": "step_test_gate",
+        "condition": "always"
+      },
+      {
+        "from": "step_test_gate",
+        "to": "gate_delivery_final",
+        "condition": "pass"
+      },
+      {
+        "from": "step_test_gate",
+        "to": "step_quality_metrics",
+        "condition": "reject"
+      },
+      {
+        "from": "gate_delivery_final",
+        "to": "END",
+        "condition": "pass"
+      },
+      {
+        "from": "gate_delivery_final",
+        "to": "step_delivery_report",
+        "condition": "reject"
+      }
     ]
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-04 15:20:00"
+  "updated_at": "2026-07-04 15:20:00",
+  "category": "正向",
+  "subject_schema": {
+    "kind": "requirement",
+    "granularity": "ir"
+  }
 }

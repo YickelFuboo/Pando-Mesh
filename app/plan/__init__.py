@@ -1,1 +1,1 @@
-"""MOMA-Developer Plan：任务规划与 LLM 建图。"""
+"""MomaPipeline Plan：任务规划与 LLM 建图。"""

@@ -1,1 +1,1 @@
-"""MOMA-Developer Session：Workflow 会话管理。"""
+"""MomaPipeline Session：Workflow 会话管理。"""

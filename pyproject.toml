@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "moma-developer"
+name = "moma-pipeline"
 version = "0.1.0"
-description = "MOMA-Developer：多 Agent 编排与 AI 研发交付平台"
+description = "MomaPipeline：多 Agent 编排与 AI 研发交付平台"
 authors = ["MOMA Team"]
 packages = [{include = "app"}]
 

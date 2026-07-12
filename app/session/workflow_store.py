@@ -13,6 +13,15 @@ from app.graph.plan_graph import (
     PlanGraphState,
 )
 from app.session.plan_mode import normalize_plan_mode
+from app.session.subject_schema import (
+    DEFAULT_GRANULARITY,
+    DEFAULT_SUBJECT_KIND,
+    SUBJECT_KIND_ARCH_ELEMENT,
+    SUBJECT_KIND_FEATURE,
+    SUBJECT_KIND_REPO,
+    SUBJECT_KIND_REQUIREMENT,
+    SUBJECT_KIND_WORKSPACE,
+)
 
 
 def _now_iso() -> str:
@@ -26,6 +35,10 @@ class WorkflowRecord:
     description: str = ""
     workspace_path: str = ""
     requirement_id: str = ""
+    subject_kind: str = ""
+    subject_id: str = ""
+    subject_granularity: str = ""
+    subject_refs: Dict[str, str] = field(default_factory=dict)
     plan_mode: str = "template"
     template_id: str = ""
     user_goal: str = ""
@@ -44,6 +57,10 @@ class WorkflowRecord:
             "description": self.description,
             "workspace_path": self.workspace_path,
             "requirement_id": self.requirement_id,
+            "subject_kind": self.subject_kind,
+            "subject_id": self.subject_id,
+            "subject_granularity": self.subject_granularity,
+            "subject_refs": dict(self.subject_refs or {}),
             "plan_mode": self.plan_mode,
             "template_id": self.template_id,
             "user_goal": self.user_goal,
@@ -69,12 +86,20 @@ class WorkflowRecord:
             plan_mode = "template"
         else:
             plan_mode = "dynamic"
-        return cls(
+        record = cls(
             workflow_id=str(data.get("workflow_id") or ""),
             name=str(data.get("name") or ""),
             description=str(data.get("description") or ""),
             workspace_path=str(data.get("workspace_path") or ""),
             requirement_id=str(data.get("requirement_id") or ""),
+            subject_kind=str(data.get("subject_kind") or ""),
+            subject_id=str(data.get("subject_id") or ""),
+            subject_granularity=str(data.get("subject_granularity") or ""),
+            subject_refs={
+                str(key).strip(): str(value).strip()
+                for key, value in (data.get("subject_refs") or {}).items()
+                if str(key).strip()
+            } if isinstance(data.get("subject_refs"), dict) else {},
             plan_mode=plan_mode,
             template_id=template_id,
             user_goal=str(data.get("user_goal") or ""),
@@ -86,6 +111,109 @@ class WorkflowRecord:
             created_at=str(data.get("created_at") or _now_iso()),
             updated_at=str(data.get("updated_at") or _now_iso()),
         )
+        hydrate_record_subject(record)
+        return record
+
+
+def sync_record_subject_fields(
+    record: WorkflowRecord,
+    *,
+    subject_kind: Optional[str] = None,
+    subject_id: Optional[str] = None,
+    subject_granularity: Optional[str] = None,
+    subject_refs: Optional[Dict[str, str]] = None,
+) -> None:
+    kind = str((subject_kind if subject_kind is not None else record.subject_kind) or "").strip().lower()
+    sid = str((subject_id if subject_id is not None else record.subject_id) or "").strip()
+    granularity = str((subject_granularity if subject_granularity is not None else record.subject_granularity) or "").strip().lower()
+    if not kind:
+        if record.requirement_id.strip():
+            kind = SUBJECT_KIND_REQUIREMENT
+            sid = sid or record.requirement_id.strip()
+            granularity = granularity or "ir"
+        else:
+            kind = SUBJECT_KIND_WORKSPACE
+            granularity = granularity or "workspace"
+    if not granularity:
+        if kind == SUBJECT_KIND_WORKSPACE:
+            granularity = "workspace"
+        elif kind == SUBJECT_KIND_FEATURE:
+            granularity = "feature"
+        elif kind == SUBJECT_KIND_ARCH_ELEMENT:
+            granularity = "arch_element"
+        elif kind == SUBJECT_KIND_REPO:
+            granularity = "repo"
+        else:
+            granularity = DEFAULT_GRANULARITY
+    if subject_refs is not None:
+        record.subject_refs = {
+            str(key).strip(): str(value).strip()
+            for key, value in subject_refs.items()
+            if str(key).strip()
+        }
+    refs = record.subject_refs or {}
+    if kind == SUBJECT_KIND_REQUIREMENT:
+        if granularity == "ir":
+            record.requirement_id = sid
+        else:
+            record.requirement_id = str(refs.get("requirement_id") or record.requirement_id or "").strip()
+    elif kind == SUBJECT_KIND_REPO:
+        record.requirement_id = str(refs.get("requirement_id") or "").strip()
+    else:
+        record.requirement_id = ""
+    record.subject_kind = kind
+    record.subject_id = sid
+    record.subject_granularity = granularity
+
+
+def hydrate_record_subject(record: WorkflowRecord) -> None:
+    kind = str(record.subject_kind or "").strip().lower()
+    sid = str(record.subject_id or "").strip()
+    gran = str(record.subject_granularity or "").strip().lower()
+    req_id = str(record.requirement_id or "").strip()
+    if not kind and req_id:
+        sync_record_subject_fields(
+            record,
+            subject_kind=SUBJECT_KIND_REQUIREMENT,
+            subject_id=req_id,
+            subject_granularity=gran or "ir",
+        )
+        return
+    if not kind:
+        sync_record_subject_fields(
+            record,
+            subject_kind=SUBJECT_KIND_WORKSPACE,
+            subject_id="",
+            subject_granularity="workspace",
+        )
+        return
+    if kind == SUBJECT_KIND_REQUIREMENT and not sid and req_id:
+        record.subject_id = req_id
+        if not gran:
+            record.subject_granularity = "ir"
+    if not gran:
+        sync_record_subject_fields(record)
+        return
+    if kind == SUBJECT_KIND_REQUIREMENT:
+        if gran == "ir":
+            record.requirement_id = record.subject_id
+        elif not record.requirement_id:
+            record.requirement_id = str((record.subject_refs or {}).get("requirement_id") or "").strip()
+    elif kind == SUBJECT_KIND_WORKSPACE:
+        record.requirement_id = ""
+
+
+def record_global_placeholders(record: WorkflowRecord) -> Dict[str, str]:
+    hydrate_record_subject(record)
+    payload = {
+        "workspace": record.workspace_path or "",
+        "requirement_id": record.requirement_id or "",
+    }
+    for key, value in (record.subject_refs or {}).items():
+        key_text = str(key).strip()
+        if key_text:
+            payload[key_text] = str(value or "").strip()
+    return payload
 
 
 class WorkflowStore:
@@ -105,6 +233,10 @@ class WorkflowStore:
         description: str = "",
         workspace_path: str = "",
         requirement_id: str = "",
+        subject_kind: str = "",
+        subject_id: str = "",
+        subject_granularity: str = "",
+        subject_refs: Optional[Dict[str, str]] = None,
         plan_mode: str = "template",
         template_id: str = "",
         user_goal: str = "",
@@ -122,9 +254,15 @@ class WorkflowStore:
                 raise ValueError("拓扑无效")
             plan_state.plan_graph = graph
         req_id = requirement_id.strip()
+        kind = str(subject_kind or "").strip().lower()
+        sid = str(subject_id if subject_id is not None else req_id).strip()
+        if not kind and req_id:
+            kind = SUBJECT_KIND_REQUIREMENT
+        if not kind:
+            kind = DEFAULT_SUBJECT_KIND
         record = WorkflowRecord(
             workflow_id=workflow_id,
-            name=name.strip() or (req_id or workflow_id),
+            name=name.strip() or (sid or workflow_id),
             description=description.strip(),
             workspace_path=workspace_path.strip(),
             requirement_id=req_id,
@@ -132,6 +270,13 @@ class WorkflowStore:
             template_id=tpl_id,
             user_goal=user_goal.strip(),
             plan_state=plan_state,
+        )
+        sync_record_subject_fields(
+            record,
+            subject_kind=kind,
+            subject_id=sid,
+            subject_granularity=subject_granularity,
+            subject_refs=subject_refs,
         )
         await self.save(record)
         return record
@@ -168,12 +313,39 @@ class WorkflowStore:
         workspace_path: str,
         requirement_id: str,
     ) -> Optional[WorkflowRecord]:
+        return await self.find_by_subject(
+            workspace_path,
+            SUBJECT_KIND_REQUIREMENT,
+            requirement_id,
+        )
+
+    async def find_by_subject(
+        self,
+        workspace_path: str,
+        subject_kind: str,
+        subject_id: str = "",
+        *,
+        subject_granularity: str = "",
+        template_id: str = "",
+    ) -> Optional[WorkflowRecord]:
         from app.workspace.paths import paths_equal
-        req_id = str(requirement_id or "").strip()
-        if not req_id:
+        kind = str(subject_kind or "").strip().lower()
+        sid = str(subject_id or "").strip()
+        gran = str(subject_granularity or "").strip().lower()
+        tpl_id = str(template_id or "").strip()
+        if not kind:
+            return None
+        if kind != SUBJECT_KIND_WORKSPACE and not sid:
             return None
         for record in await self.list_all():
-            if record.requirement_id != req_id:
+            hydrate_record_subject(record)
+            if record.subject_kind != kind:
+                continue
+            if record.subject_id != sid:
+                continue
+            if gran and record.subject_granularity != gran:
+                continue
+            if tpl_id and record.template_id != tpl_id:
                 continue
             if paths_equal(record.workspace_path, workspace_path):
                 return record

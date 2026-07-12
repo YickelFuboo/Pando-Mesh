@@ -60,6 +60,29 @@ export function openRequirementSession(requirementId, payload) {
   })
 }
 
+export function getWorkspaceSessionMeta(workspacePath, templateId = '') {
+  const qs = new URLSearchParams({ workspace_path: workspacePath, subject_type: 'workspace' })
+  if (templateId) qs.set('template_id', templateId)
+  return request(`/workflows/meta/subject-objects?${qs.toString()}`)
+}
+
+export function listSubjectObjects(workspacePath, subjectType, templateId = '') {
+  const qs = new URLSearchParams({ workspace_path: workspacePath, subject_type: subjectType })
+  if (templateId) qs.set('template_id', templateId)
+  return request(`/workflows/meta/subject-objects?${qs.toString()}`)
+}
+
+export function openWorkspaceSession(payload) {
+  return openSubjectSession({ ...payload, subject_type: 'workspace', subject_id: '', object_id: '_workspace_' })
+}
+
+export function openSubjectSession(payload) {
+  return request('/workflows/subjects/session', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function getWorkflow(id) {
   return request(`/workflows/${encodeURIComponent(id)}`)
 }

@@ -545,7 +545,7 @@ class LangGraphExecutor:
         if not graph_node.is_cli():
             raise ValueError(
                 f"节点「{graph_node.label or graph_node.id}」未配置 CLI 执行器；"
-                "MOMA-Developer 仅支持 CLI 节点（Claude Code、Codex 等）。"
+                "MomaPipeline 仅支持 CLI 节点（Claude Code、Codex 等）。"
             )
 
         text_task = LangGraphExecutor._build_cli_task(

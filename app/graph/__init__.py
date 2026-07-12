@@ -1,1 +1,1 @@
-"""MOMA-Developer Graph：Workflow 拓扑与执行。"""
+"""MomaPipeline Graph：Workflow 拓扑与执行。"""

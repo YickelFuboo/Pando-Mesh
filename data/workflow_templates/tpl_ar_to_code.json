@@ -23,7 +23,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -74,7 +77,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -121,7 +127,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -167,7 +176,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -215,7 +227,10 @@
             "result_json_key": "result",
             "session": {
               "enabled": true,
-              "resume_args": ["--resume", "{cli_session_id}"],
+              "resume_args": [
+                "--resume",
+                "{cli_session_id}"
+              ],
               "read_session_id_from_json": true,
               "session_id_json_key": "session_id",
               "history": {
@@ -260,20 +275,69 @@
       }
     ],
     "edges": [
-      { "from": "START", "to": "step_scope_refine", "condition": "always" },
-      { "from": "step_scope_refine", "to": "step_codegen", "condition": "always" },
-      { "from": "step_codegen", "to": "step_code_qc", "condition": "always" },
-      { "from": "step_code_qc", "to": "step_ut_generate", "condition": "pass" },
-      { "from": "step_code_qc", "to": "step_codegen", "condition": "reject" },
-      { "from": "step_ut_generate", "to": "step_ut_execute", "condition": "always" },
-      { "from": "step_ut_execute", "to": "gate_delivery", "condition": "pass" },
-      { "from": "step_ut_execute", "to": "step_ut_generate", "condition": "reject" },
-      { "from": "gate_delivery", "to": "END", "condition": "pass" },
-      { "from": "gate_delivery", "to": "step_codegen", "condition": "reject" }
+      {
+        "from": "START",
+        "to": "step_scope_refine",
+        "condition": "always"
+      },
+      {
+        "from": "step_scope_refine",
+        "to": "step_codegen",
+        "condition": "always"
+      },
+      {
+        "from": "step_codegen",
+        "to": "step_code_qc",
+        "condition": "always"
+      },
+      {
+        "from": "step_code_qc",
+        "to": "step_ut_generate",
+        "condition": "pass"
+      },
+      {
+        "from": "step_code_qc",
+        "to": "step_codegen",
+        "condition": "reject"
+      },
+      {
+        "from": "step_ut_generate",
+        "to": "step_ut_execute",
+        "condition": "always"
+      },
+      {
+        "from": "step_ut_execute",
+        "to": "gate_delivery",
+        "condition": "pass"
+      },
+      {
+        "from": "step_ut_execute",
+        "to": "step_ut_generate",
+        "condition": "reject"
+      },
+      {
+        "from": "gate_delivery",
+        "to": "END",
+        "condition": "pass"
+      },
+      {
+        "from": "gate_delivery",
+        "to": "step_codegen",
+        "condition": "reject"
+      }
     ],
     "entry": "step_scope_refine"
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-06 22:15:00"
+  "updated_at": "2026-07-06 22:15:00",
+  "category": "正向",
+  "subject_schema": {
+    "kind": "repo",
+    "granularity": "repo",
+    "required_placeholders": [
+      "requirement_id",
+      "repo_id"
+    ]
+  }
 }

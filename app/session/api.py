@@ -13,6 +13,16 @@ from app.workspace.features import load_features_tree
 from app.workspace.architectures import load_architectures_tree, load_element_interfaces
 from app.workspace.requirement_index import load_requirements_tree
 from app.session.plan_mode import PlanMode, normalize_plan_mode
+from app.session.subject_schema import (
+    SUBJECT_KIND_REQUIREMENT,
+    SUBJECT_KIND_WORKSPACE,
+    normalize_subject_type,
+    resolve_template_subject_schema,
+    schema_to_subject_type,
+    subject_type_spec,
+    template_matches_subject_type,
+)
+from app.workspace.subject_objects import list_subject_objects
 from app.session.session_plan import hydrate_session_graph, session_plan_info
 from app.session.template_store import WorkflowTemplateStore, apply_template_to_record
 from app.session.workflow_service import WorkflowService
@@ -39,6 +49,26 @@ class WorkflowCreateRequest(BaseModel):
 
 class RequirementSessionRequest(BaseModel):
     workspace_path: str = Field(..., min_length=1)
+    user_goal: str = ""
+    plan_mode: str = Field(default="template", description="template | dynamic")
+    template_id: str = ""
+    graph: Optional[Dict[str, Any]] = None
+
+
+class WorkspaceSessionRequest(BaseModel):
+    workspace_path: str = Field(..., min_length=1)
+    user_goal: str = ""
+    plan_mode: str = Field(default="template", description="template | dynamic")
+    template_id: str = ""
+    graph: Optional[Dict[str, Any]] = None
+
+
+class SubjectSessionRequest(BaseModel):
+    workspace_path: str = Field(..., min_length=1)
+    subject_type: str = Field(..., min_length=1, description="workspace|feature|arch_element|ir|sr|ar|repo")
+    object_id: str = ""
+    subject_id: str = ""
+    subject_refs: Dict[str, str] = Field(default_factory=dict)
     user_goal: str = ""
     plan_mode: str = Field(default="template", description="template | dynamic")
     template_id: str = ""
@@ -119,6 +149,12 @@ async def _workflow_info(record) -> Dict[str, Any]:
     payload = record.to_dict()
     payload["running"] = _service.is_running(record.workflow_id)
     payload["pending"] = _service.get_pending(record)
+    payload["subject_type"] = schema_to_subject_type(
+        {
+            "kind": record.subject_kind,
+            "granularity": record.subject_granularity or record.subject_kind,
+        }
+    )
     template_name = ""
     if record.template_id:
         tpl = await _template_store.get(record.template_id)
@@ -131,6 +167,7 @@ async def _workflow_info(record) -> Dict[str, Any]:
 def _template_info(item) -> Dict[str, Any]:
     payload = item.to_dict()
     payload["node_count"] = item.node_count()
+    payload["subject_schema"] = resolve_template_subject_schema(item)
     return payload
 
 
@@ -250,6 +287,236 @@ async def read_meta_workspace_file(workspace_path: str, path: str = Query(..., m
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
+def _assert_template_subject_type(template, subject_type: str) -> None:
+    if not template_matches_subject_type(template, subject_type):
+        schema = resolve_template_subject_schema(template)
+        expected = subject_type_spec(subject_type)
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"模板 {template.template_id} 的作业对象为 "
+                f"{schema.get('subject_type')}，与当前选择 {normalize_subject_type(subject_type)} 不匹配"
+            ),
+        )
+
+
+async def _create_subject_session(
+    *,
+    workspace_path: str,
+    subject_type: str,
+    subject_kind: str,
+    subject_granularity: str,
+    subject_id: str,
+    subject_refs: Optional[Dict[str, str]],
+    name: str,
+    description: str,
+    user_goal: str,
+    plan_mode: str,
+    template_id: str,
+    graph_spec: Optional[Dict[str, Any]],
+) -> Any:
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    plan_mode = normalize_plan_mode(plan_mode)
+    tpl_id = str(template_id or "").strip()
+    goal = str(user_goal or "").strip()
+    judge_mode = ""
+    template = None
+    refs = {
+        str(key).strip(): str(value).strip()
+        for key, value in (subject_refs or {}).items()
+        if str(key).strip()
+    }
+    if plan_mode == PlanMode.TEMPLATE.value:
+        if not tpl_id:
+            raise HTTPException(status_code=400, detail="模板模式须选择 template_id")
+        template = await _template_store.get(tpl_id)
+        if template is None:
+            raise HTTPException(status_code=404, detail="模板不存在")
+        _assert_template_subject_type(template, subject_type)
+        if template.user_goal and not goal:
+            goal = template.user_goal
+        judge_mode = template.judge_mode or ""
+    req_id = ""
+    if subject_kind == SUBJECT_KIND_REQUIREMENT:
+        req_id = refs.get("requirement_id") or (subject_id if subject_granularity == "ir" else "")
+    elif subject_kind == "repo":
+        req_id = refs.get("requirement_id", "")
+    try:
+        record = await _service.store.create(
+            name=name,
+            description=description,
+            workspace_path=ws,
+            requirement_id=req_id,
+            subject_kind=subject_kind,
+            subject_id=subject_id,
+            subject_granularity=subject_granularity,
+            subject_refs=refs,
+            plan_mode=plan_mode,
+            template_id=tpl_id,
+            user_goal=goal,
+            graph_spec=graph_spec,
+        )
+        if template is not None:
+            apply_template_to_record(record, template)
+            await _service.store.save(record)
+        elif judge_mode:
+            record.judge_mode = judge_mode
+            await _service.store.save(record)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return await _workflow_info(record)
+
+
+@router.get("/meta/subject-objects", summary="作业对象列表")
+async def list_subject_object_items(
+    workspace_path: str,
+    subject_type: str = Query(..., min_length=1),
+    template_id: str = Query("", description="模板 ID，用于附带 Session 状态"),
+):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    try:
+        items = list_subject_objects(ws, subject_type)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    tpl_id = str(template_id or "").strip()
+    payload: List[Dict[str, Any]] = []
+    for item in items:
+        row = dict(item)
+        record = await _service.store.find_by_subject(
+            ws,
+            str(row.get("subject_kind") or ""),
+            str(row.get("subject_id") or ""),
+            subject_granularity=str(row.get("subject_granularity") or ""),
+            template_id=tpl_id,
+        )
+        row["workspace_path"] = ws
+        row["workflow_id"] = record.workflow_id if record else None
+        row["has_session"] = record is not None
+        row["running"] = _service.is_running(record.workflow_id) if record else False
+        row["plan_phase"] = record.plan_state.phase.value if record else "idle"
+        payload.append(row)
+    return payload
+
+
+@router.post("/subjects/session", summary="打开或创建作业对象 Workflow Session")
+async def open_subject_session(body: SubjectSessionRequest):
+    ws = normalize_workspace_path(body.workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    subject_type = normalize_subject_type(body.subject_type)
+    spec = subject_type_spec(subject_type)
+    subject_kind = spec["kind"]
+    subject_granularity = spec["granularity"]
+    subject_id = str(body.subject_id or "").strip()
+    refs = {
+        str(key).strip(): str(value).strip()
+        for key, value in (body.subject_refs or {}).items()
+        if str(key).strip()
+    }
+    tpl_id = str(body.template_id or "").strip()
+    if not subject_id and subject_kind != SUBJECT_KIND_WORKSPACE:
+        raise HTTPException(status_code=400, detail="subject_id 不能为空")
+    existing = await _service.store.find_by_subject(
+        ws,
+        subject_kind,
+        subject_id,
+        subject_granularity=subject_granularity,
+        template_id=tpl_id,
+    )
+    if existing is not None:
+        return await _workflow_info(existing)
+    label = str(body.object_id or subject_id or "Workspace").strip()
+    return await _create_subject_session(
+        workspace_path=ws,
+        subject_type=subject_type,
+        subject_kind=subject_kind,
+        subject_granularity=subject_granularity,
+        subject_id=subject_id,
+        subject_refs=refs,
+        name=label,
+        description=label,
+        user_goal=body.user_goal,
+        plan_mode=body.plan_mode,
+        template_id=tpl_id,
+        graph_spec=body.graph,
+    )
+
+
+@router.get("/meta/workspace-session", summary="Workspace 级 Workflow Session 状态")
+async def get_workspace_session_meta(
+    workspace_path: str,
+    template_id: str = Query("", description="模板 ID，用于区分不同 Workspace 任务"),
+):
+    ws = normalize_workspace_path(workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    tpl_id = str(template_id or "").strip()
+    record = await _service.store.find_by_subject(
+        ws,
+        SUBJECT_KIND_WORKSPACE,
+        "",
+        subject_granularity="workspace",
+        template_id=tpl_id,
+    )
+    if record is None:
+        return {
+            "workspace_path": ws,
+            "template_id": tpl_id,
+            "subject_kind": SUBJECT_KIND_WORKSPACE,
+            "subject_id": "",
+            "workflow_id": None,
+            "has_session": False,
+            "running": False,
+            "plan_phase": "idle",
+        }
+    return {
+        "workspace_path": ws,
+        "template_id": record.template_id,
+        "subject_kind": record.subject_kind,
+        "subject_id": record.subject_id,
+        "workflow_id": record.workflow_id,
+        "has_session": True,
+        "running": _service.is_running(record.workflow_id),
+        "plan_phase": record.plan_state.phase.value,
+    }
+
+
+@router.post("/workspace/session", summary="打开或创建 Workspace Workflow Session")
+async def open_workspace_session(body: WorkspaceSessionRequest):
+    ws = normalize_workspace_path(body.workspace_path)
+    if not ws:
+        raise HTTPException(status_code=400, detail="workspace_path 不能为空")
+    tpl_id = str(body.template_id or "").strip()
+    existing = await _service.store.find_by_subject(
+        ws,
+        SUBJECT_KIND_WORKSPACE,
+        "",
+        template_id=tpl_id,
+    )
+    if existing is not None:
+        return await _workflow_info(existing)
+    return await _create_subject_session(
+        workspace_path=ws,
+        subject_type="workspace",
+        subject_kind=SUBJECT_KIND_WORKSPACE,
+        subject_granularity="workspace",
+        subject_id="",
+        subject_refs={},
+        name="Workspace",
+        description=ws,
+        user_goal=body.user_goal,
+        plan_mode=body.plan_mode,
+        template_id=tpl_id,
+        graph_spec=body.graph,
+    )
+
+
 @router.post("/requirements/{requirement_id}/session", summary="打开或创建需求 Workflow Session")
 async def open_requirement_session(requirement_id: str, body: RequirementSessionRequest):
     ws = normalize_workspace_path(body.workspace_path)
@@ -269,43 +536,20 @@ async def open_requirement_session(requirement_id: str, body: RequirementSession
         if item.requirement_id == requirement_id:
             summary = item.summary
             break
-    plan_mode = normalize_plan_mode(body.plan_mode)
-    template_id = str(body.template_id or "").strip()
-    user_goal = (body.user_goal or summary or "").strip()
-    judge_mode = ""
-    graph_spec = None
-    template = None
-    if plan_mode == PlanMode.TEMPLATE.value:
-        if not template_id:
-            raise HTTPException(status_code=400, detail="模板模式须选择 template_id")
-        template = await _template_store.get(template_id)
-        if template is None:
-            raise HTTPException(status_code=404, detail="模板不存在")
-        if template.user_goal and not user_goal:
-            user_goal = template.user_goal
-        judge_mode = template.judge_mode or ""
-    else:
-        graph_spec = body.graph
-    try:
-        record = await _service.store.create(
-            name=requirement_id,
-            description=str(req_dir),
-            workspace_path=ws,
-            requirement_id=requirement_id,
-            plan_mode=plan_mode,
-            template_id=template_id,
-            user_goal=user_goal,
-            graph_spec=graph_spec,
-        )
-        if template is not None:
-            apply_template_to_record(record, template)
-            await _service.store.save(record)
-        elif judge_mode:
-            record.judge_mode = judge_mode
-            await _service.store.save(record)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    return await _workflow_info(record)
+    return await _create_subject_session(
+        workspace_path=ws,
+        subject_type="ir",
+        subject_kind=SUBJECT_KIND_REQUIREMENT,
+        subject_granularity="ir",
+        subject_id=requirement_id,
+        subject_refs={"requirement_id": requirement_id},
+        name=requirement_id,
+        description=str(req_dir),
+        user_goal=body.user_goal or summary,
+        plan_mode=body.plan_mode,
+        template_id=body.template_id,
+        graph_spec=body.graph,
+    )
 
 
 @router.get("/templates", summary="Workflow 模板列表")

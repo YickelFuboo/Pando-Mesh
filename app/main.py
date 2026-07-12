@@ -14,11 +14,12 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="MOMA-Developer",
-    description="MOMA-Developer：多 Agent 编排与 AI 研发交付平台",
+    title="MomaPipeline",
+    description="MomaPipeline：多 Agent 编排与 AI 研发交付平台",
     version="0.1.0",
     lifespan=lifespan,
 )
+
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
@@ -35,7 +36,7 @@ app.include_router(agents_router)
 async def health():
     return {
         "status": "ok",
-        "service": "MOMA-Developer",
+        "service": "MomaPipeline",
         "llm": {
             "available": models_config.is_available(),
             "models_file": str(settings.models_path),

@@ -1,7 +1,7 @@
 <template>
   <div class="home-page">
     <header class="home-hero">
-      <span class="home-badge">MOMA-Developer</span>
+      <span class="home-badge">MOMA Pipeline</span>
       <h1 class="home-title">
         软件端到端 <span class="accent">AI 自主研发</span> 交付平台
       </h1>

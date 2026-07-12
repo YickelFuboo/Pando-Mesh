@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "MOMA-Developer API (Debug)",
+      "name": "MomaPipeline API (Debug)",
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/start.py",
@@ -27,7 +27,7 @@
       "justMyCode": true
     },
     {
-      "name": "MOMA-Developer Web (Vite)",
+      "name": "MomaPipeline Web (Vite)",
       "type": "node",
       "request": "launch",
       "preLaunchTask": "free-port-5174",
@@ -39,10 +39,10 @@
   ],
   "compounds": [
     {
-      "name": "MOMA-Developer 全栈 (API + Web)",
+      "name": "MomaPipeline 全栈 (API + Web)",
       "configurations": [
-        "MOMA-Developer API (Debug)",
-        "MOMA-Developer Web (Vite)"
+        "MomaPipeline API (Debug)",
+        "MomaPipeline Web (Vite)"
       ],
       "stopAll": true
     }

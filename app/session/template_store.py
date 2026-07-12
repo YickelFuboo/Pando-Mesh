@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from app.config.paths import resolve_data_dir
 from app.config.settings import settings
 from app.graph.plan_graph import DirectExecGraph
+from app.session.subject_schema import infer_subject_schema_from_template, normalize_subject_schema
 from app.session.workflow_store import WorkflowRecord
 
 
@@ -23,6 +24,7 @@ class WorkflowTemplate:
     user_goal: str = ""
     judge_mode: str = ""
     category: str = ""
+    subject_schema: Dict[str, Any] = field(default_factory=dict)
     graph: Dict[str, Any] = field(default_factory=dict)
     source_workflow_id: str = ""
     created_at: str = field(default_factory=_now_iso)
@@ -36,6 +38,7 @@ class WorkflowTemplate:
             "user_goal": self.user_goal,
             "judge_mode": self.judge_mode,
             "category": self.category,
+            "subject_schema": dict(self.subject_schema or {}),
             "graph": dict(self.graph or {}),
             "source_workflow_id": self.source_workflow_id,
             "created_at": self.created_at,
@@ -46,6 +49,15 @@ class WorkflowTemplate:
     def from_dict(cls, data: Dict[str, Any]) -> "WorkflowTemplate":
         graph_raw = data.get("graph")
         graph = dict(graph_raw) if isinstance(graph_raw, dict) else {}
+        schema_raw = data.get("subject_schema")
+        if isinstance(schema_raw, dict) and str(schema_raw.get("kind") or "").strip():
+            subject_schema = normalize_subject_schema(schema_raw)
+        else:
+            subject_schema = infer_subject_schema_from_template(
+                user_goal=str(data.get("user_goal") or ""),
+                description=str(data.get("description") or ""),
+                graph=graph,
+            )
         return cls(
             template_id=str(data.get("template_id") or ""),
             name=str(data.get("name") or ""),
@@ -53,6 +65,7 @@ class WorkflowTemplate:
             user_goal=str(data.get("user_goal") or ""),
             judge_mode=str(data.get("judge_mode") or ""),
             category=str(data.get("category") or ""),
+            subject_schema=subject_schema,
             graph=graph,
             source_workflow_id=str(data.get("source_workflow_id") or ""),
             created_at=str(data.get("created_at") or _now_iso()),
@@ -82,6 +95,7 @@ class WorkflowTemplateStore:
         user_goal: str = "",
         judge_mode: str = "",
         category: str = "",
+        subject_schema: Optional[Dict[str, Any]] = None,
         graph: Optional[Dict[str, Any]] = None,
         source_workflow_id: str = "",
     ) -> WorkflowTemplate:
@@ -92,6 +106,11 @@ class WorkflowTemplateStore:
                 raise ValueError("拓扑无效")
             graph_spec = parsed.to_dict()
         template_id = f"tpl_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+        schema = normalize_subject_schema(subject_schema) if subject_schema else infer_subject_schema_from_template(
+            user_goal=user_goal,
+            description=description,
+            graph=graph_spec,
+        )
         item = WorkflowTemplate(
             template_id=template_id,
             name=name.strip() or template_id,
@@ -99,6 +118,7 @@ class WorkflowTemplateStore:
             user_goal=user_goal.strip(),
             judge_mode=judge_mode.strip(),
             category=category.strip(),
+            subject_schema=schema,
             graph=graph_spec,
             source_workflow_id=source_workflow_id.strip(),
         )
@@ -149,6 +169,7 @@ class WorkflowTemplateStore:
         user_goal: Optional[str] = None,
         judge_mode: Optional[str] = None,
         category: Optional[str] = None,
+        subject_schema: Optional[Dict[str, Any]] = None,
         graph: Optional[Dict[str, Any]] = None,
     ) -> WorkflowTemplate:
         item = await self.get(template_id)
@@ -164,6 +185,8 @@ class WorkflowTemplateStore:
             item.judge_mode = judge_mode.strip()
         if category is not None:
             item.category = category.strip()
+        if subject_schema is not None:
+            item.subject_schema = normalize_subject_schema(subject_schema)
         if graph is not None:
             parsed = DirectExecGraph.from_dict(graph)
             if parsed is None:

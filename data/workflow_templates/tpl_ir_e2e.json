@@ -4,7 +4,7 @@
   "description": "单个 IR 从需求澄清到测试交付的完整 E2E 工作流；SR/REPO 通过 expand 节点（native_llm 规划 + 分段模板 tpl_sr_to_ar / tpl_ar_to_code 实例化）动态展开",
   "user_goal": "对 {requirement_id} 完成 IR→SR→AR→代码→构建→测试→交付 全链路",
   "judge_mode": "auto",
-  "category": "",
+  "category": "端到端",
   "graph": {
     "nodes": [
       {
@@ -1320,5 +1320,10 @@
   },
   "source_workflow_id": "",
   "created_at": "2026-07-04 00:00:00",
-  "updated_at": "2026-07-09 14:47:46"
+  "updated_at": "2026-07-09 14:47:46",
+  "subject_schema": {
+    "kind": "requirement",
+    "granularity": "ir",
+    "auto_expand": true
+  }
 }

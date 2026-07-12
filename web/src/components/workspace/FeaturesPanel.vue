@@ -80,7 +80,7 @@ import {
 } from '../../utils/featureTreeModel.js'
 import { flattenElements, normalizeElementRow } from '../../utils/architectureTreeModel.js'
 
-const TREE_PANE_WIDTH_KEY = 'moma_developer_features_tree_width'
+const TREE_PANE_WIDTH_KEY = 'moma_pipeline_features_tree_width'
 const TREE_PANE_MIN_W = 220
 const TREE_PANE_MAX_W = 560
 const TREE_PANE_DEFAULT_W = 300

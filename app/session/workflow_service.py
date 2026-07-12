@@ -22,6 +22,7 @@ from app.graph.judge import build_judge_callback
 from app.runtime.context import AgentContext, RuntimeContext
 from app.runtime.message import Message
 from app.session.plan_mode import PlanMode, normalize_plan_mode
+from app.session.workflow_store import WorkflowRecord, record_global_placeholders
 from app.session.session_plan import hydrate_session_graph
 from app.session.template_store import WorkflowTemplateStore, apply_template_to_record
 from app.session.workflow_store import WorkflowRecord, WorkflowStore
@@ -272,10 +273,7 @@ class WorkflowService:
             graph = repair_lane_expand_graph(
                 graph,
                 lanes=lanes,
-                global_placeholders={
-                    "requirement_id": record.requirement_id or "",
-                    "workspace": record.workspace_path or "",
-                },
+                global_placeholders=record_global_placeholders(record),
             )
             changed = True
         elif graph_has_duplicate_edges(graph):
@@ -582,10 +580,7 @@ class WorkflowService:
         if graph is None:
             raise ValueError("拓扑无效")
         merge_label = str(pending.get("merge_label") or "任务汇聚")
-        global_placeholders = {
-            "requirement_id": record.requirement_id or "",
-            "workspace": record.workspace_path or "",
-        }
+        global_placeholders = record_global_placeholders(record)
         expansion = {"mode": mode, "tasks": tasks, "lanes": lanes}
         new_graph, fork_id = apply_expansion_to_graph(
             graph,
